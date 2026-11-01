@@ -46,7 +46,7 @@ For a managed collection, a poster set by hand switches its artwork to "Leave as
 
 ## Safety
 
-- The plugin only manages collections it created. Each one is tagged `embycollections:<id>`, and other collections are never touched.
+- Sync only touches collections the plugin created or that you adopted. Each one is tagged `embycollections:<id>`. Other collections change only when you edit them on the All collections tab.
 - If any source fails during a sync, nothing is removed from that collection. This stops a failed list fetch from emptying a collection.
 - **Stop managing** removes the definition from the plugin and leaves the Emby collection in place.
 - **Add only** collections never lose titles, and a collection with no sources is never emptied.
