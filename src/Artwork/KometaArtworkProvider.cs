@@ -18,7 +18,6 @@ namespace EmbyCollections.Artwork
     public sealed class KometaArtworkProvider : IArtworkProvider
     {
         public const string RawBase = "https://raw.githubusercontent.com/Kometa-Team/Default-Images/master/";
-        private const string TreeUrl = "https://api.github.com/repos/Kometa-Team/Default-Images/git/trees/master?recursive=1";
 
         /// <summary>Folders searched by name, best first. Only full posters (no overlays, logos or grids).</summary>
         private static readonly string[] Preferred =
@@ -30,6 +29,7 @@ namespace EmbyCollections.Artwork
         private readonly Func<string> dataDir;
         private readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
         private List<string> index;
+        private DateTime retryAfter = DateTime.MaxValue;
 
         public KometaArtworkProvider(Func<string> dataDir)
         {
@@ -128,7 +128,7 @@ namespace EmbyCollections.Artwork
 
         private async Task<List<string>> GetIndexAsync(CancellationToken ct)
         {
-            if (this.index != null)
+            if (this.index != null && DateTime.UtcNow < this.retryAfter)
             {
                 return this.index;
             }
@@ -136,11 +136,12 @@ namespace EmbyCollections.Artwork
             await this.gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                if (this.index != null)
+                if (this.index != null && DateTime.UtcNow < this.retryAfter)
                 {
                     return this.index;
                 }
 
+                this.retryAfter = DateTime.MaxValue;
                 var cache = Path.Combine(this.dataDir(), "kometa-images.json");
                 if (File.Exists(cache) && File.GetLastWriteTimeUtc(cache) > DateTime.UtcNow.AddDays(-7))
                 {
@@ -149,34 +150,93 @@ namespace EmbyCollections.Artwork
 
                 try
                 {
-                    using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, TreeUrl);
-                    req.Headers.Accept.ParseAdd("application/vnd.github+json");
-                    using var response = await Http.Client.SendAsync(req, ct).ConfigureAwait(false);
-                    response.EnsureSuccessStatusCode();
-                    using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
-                    var list = new List<string>();
-                    foreach (var e in doc.RootElement.GetProperty("tree").EnumerateArray())
-                    {
-                        var p = e.GetProperty("path").GetString();
-                        if (e.GetProperty("type").GetString() == "blob" && IsPoster(p))
-                        {
-                            list.Add(p);
-                        }
-                    }
-
+                    var list = await this.FetchIndexAsync(ct).ConfigureAwait(false);
                     File.WriteAllText(cache, JsonSerializer.Serialize(list));
                     return this.index = list;
                 }
-                catch when (File.Exists(cache))
+                catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
-                    // GitHub unreachable or rate-limited: an old index beats none.
-                    return this.index = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(cache));
+                    // GitHub unreachable, rate-limited or erroring: an older list beats none.
+                    Plugin.Instance?.Logger.Warn("Kometa image list not refreshed from GitHub ({0}); using {1}", ex.Message, File.Exists(cache) ? "the cached list" : "the built-in list");
+                    var fallback = File.Exists(cache) ? JsonSerializer.Deserialize<List<string>>(File.ReadAllText(cache)) : BuiltIn();
+                    this.index = fallback;
+                    this.retryAfter = DateTime.UtcNow.AddHours(6);
+                    return fallback;
                 }
             }
             finally
             {
                 this.gate.Release();
             }
+        }
+
+        /// <summary>
+        /// The repo is too big for one recursive tree request (GitHub answers 500), so list the
+        /// top level and then each poster folder on its own. Folders that fail are skipped.
+        /// </summary>
+        private async Task<List<string>> FetchIndexAsync(CancellationToken ct)
+        {
+            var list = new List<string>();
+            using (var top = await GetTreeAsync("master", false, ct).ConfigureAwait(false))
+            {
+                var folders = top.RootElement.GetProperty("tree").EnumerateArray()
+                    .Where(e => e.GetProperty("type").GetString() == "tree")
+                    .Select(e => (path: e.GetProperty("path").GetString(), sha: e.GetProperty("sha").GetString()))
+                    .Where(f => Preferred.Any(p => p.StartsWith(f.path + "/", StringComparison.Ordinal)) || f.path == "playlist" || f.path == "based")
+                    .ToList();
+                var failed = 0;
+                foreach (var (path, sha) in folders)
+                {
+                    try
+                    {
+                        using var sub = await GetTreeAsync(sha, true, ct).ConfigureAwait(false);
+                        foreach (var e in sub.RootElement.GetProperty("tree").EnumerateArray())
+                        {
+                            var p = path + "/" + e.GetProperty("path").GetString();
+                            if (e.GetProperty("type").GetString() == "blob" && IsPoster(p))
+                            {
+                                list.Add(p);
+                            }
+                        }
+                    }
+                    catch (Exception ex) when (!(ex is OperationCanceledException))
+                    {
+                        failed++;
+                        Plugin.Instance?.Logger.Warn("Kometa folder {0} not listed: {1}", path, ex.Message);
+                    }
+                }
+
+                if (list.Count == 0 || failed > folders.Count / 2)
+                {
+                    throw new InvalidOperationException($"{failed} of {folders.Count} Kometa folders could not be listed");
+                }
+            }
+
+            return list;
+        }
+
+        private static async Task<JsonDocument> GetTreeAsync(string sha, bool recursive, CancellationToken ct)
+        {
+            var url = "https://api.github.com/repos/Kometa-Team/Default-Images/git/trees/" + sha + (recursive ? "?recursive=1" : string.Empty);
+            using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
+            req.Headers.Accept.ParseAdd("application/vnd.github+json");
+            using var response = await Http.Client.SendAsync(req, ct).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            return JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+        }
+
+        /// <summary>Poster list shipped with the plugin (taken from Default-Images when this version was built).</summary>
+        private static List<string> BuiltIn()
+        {
+            using var raw = typeof(KometaArtworkProvider).Assembly.GetManifestResourceStream("EmbyCollections.kometa-images.txt.gz");
+            if (raw == null)
+            {
+                return new List<string>();
+            }
+
+            using var gz = new System.IO.Compression.GZipStream(raw, System.IO.Compression.CompressionMode.Decompress);
+            using var reader = new StreamReader(gz);
+            return reader.ReadToEnd().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(IsPoster).ToList();
         }
 
         private static bool IsPoster(string p)
