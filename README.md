@@ -48,6 +48,16 @@ The **All collections** tab lists every collection on the server, whether this p
 
 For a managed collection, a poster set by hand switches its artwork to "Leave as is", so the next sync doesn't replace it. Name edits are kept in sync with the plugin's settings too.
 
+## Home screen rows
+
+Emby 4.10+ can show a single collection as a row on a user's home screen. Open a collection on the **All collections** tab (or click **Home screen…** on a managed collection) to add, update or remove that row for any users. You can set:
+
+- **Row name.**
+- **Sort:** newest first, recently added first, collection order, name, or highest rated first.
+- **Style:** cards, or Spotlight (large banners).
+
+Rows are saved through Emby's own home screen settings, so each user's existing sections are kept, and the user can still edit or remove the row in Settings → Home Screen. The row follows the collection, so titles added by a sync show up automatically.
+
 ## Safety
 
 - Sync only touches collections the plugin created or that you adopted. Each one is tagged `embycollections:<id>`. Other collections change only when you edit them on the All collections tab.

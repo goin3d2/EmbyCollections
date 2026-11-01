@@ -13,6 +13,15 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         { value: 'Name', name: 'Name' }
     ];
 
+    // Sort choices for a collection row on the home screen (SortBy|SortOrder, as Emby's own section editor saves them).
+    var HOME_SORTS = [
+        { value: 'ProductionYear|Descending', name: 'Newest first (release year)' },
+        { value: 'DateCreated|Descending', name: 'Recently added first' },
+        { value: 'default|Ascending', name: 'Collection order' },
+        { value: 'SortName|Ascending', name: 'Name' },
+        { value: 'CommunityRating|Descending', name: 'Highest rated first' }
+    ];
+
     var ART_MODES = [
         { value: 'Auto', name: 'Auto (URL → Kometa → TMDB → generated)' },
         { value: 'Url', name: 'Poster URL' },
@@ -245,6 +254,9 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         } else if (act === 'delsource') {
             col.Sources.splice(parseInt(btn.getAttribute('data-s'), 10), 1);
             this.render();
+        } else if (act === 'home') {
+            this.showTab('all');
+            this.loadExisting().then(function () { self.openEditor(col.BoxSetId); });
         } else if (act === 'delete') {
             if (window.confirm('Stop managing "' + col.Name + '"? The Emby collection itself is kept.')) {
                 this.config.Collections.splice(ci, 1);
@@ -353,6 +365,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 '<div class="ec-status" data-c="' + ci + '">' + self.statusText(c) + '</div>' +
                 '<div class="ec-actions">' +
                 '<button is="emby-button" type="button" class="raised" data-act="sync" data-c="' + ci + '"><span>Save and sync</span></button>' +
+                (c.BoxSetId ? '<button is="emby-button" type="button" class="raised" data-act="home" data-c="' + ci + '"><span>Home screen…</span></button>' : '') +
                 '<button is="emby-button" type="button" class="raised" data-act="delete" data-c="' + ci + '"><span>Stop managing</span></button>' +
                 '</div></div>';
         }).join('');
@@ -532,12 +545,22 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
             '<div class="ec-sub">Titles</div><div class="ec-members"><span class="ec-hint">Loading…</span></div>' +
             '<div class="ec-actions"><button is="emby-button" type="button" class="raised" data-xact="removeitems"><span>Remove selected titles</span></button></div>' +
 
+            '<div class="ec-sub">Home screen row</div>' +
+            '<p class="ec-hint ec-xhomestatus">Checking home screens…</p>' +
+            '<div class="ec-field"><span>Row name</span><input class="ec-input ec-xhname" type="text" value="' + esc(c.Name) + '" /></div>' +
+            '<div class="ec-field"><span>Sort</span><select class="ec-select ec-xhsort">' + options(HOME_SORTS, 'ProductionYear|Descending') + '</select></div>' +
+            '<div class="ec-field"><span>Style</span><select class="ec-select ec-xhview">' + options([{ value: '', name: 'Cards' }, { value: 'spotlight', name: 'Spotlight (large banners)' }], '') + '</select></div>' +
+            '<div class="ec-field"><span>Users</span><div class="ec-xhusers"><span class="ec-hint">Loading…</span></div></div>' +
+            '<div class="ec-actions"><button is="emby-button" type="button" class="raised button-submit" data-xact="homeadd"><span>Add / update row</span></button>' +
+            '<button is="emby-button" type="button" class="raised" data-xact="homeremove"><span>Remove row</span></button></div>' +
+
             '<div class="ec-sub">Collection</div><div class="ec-actions">' +
             (c.ManagedId ? '' : '<button is="emby-button" type="button" class="raised" data-xact="adopt"><span>Manage with this plugin</span></button>') +
             '<button is="emby-button" type="button" class="raised ec-danger" data-xact="delete"><span>Delete collection</span></button>' +
             '<button is="emby-button" type="button" class="raised" data-xact="close"><span>Close</span></button></div>' +
             '</div>';
         this.renderArtFields();
+        this.loadHomeRows(id);
         getJson('Existing/' + id + '/Items').then(function (items) {
             var box = ed.querySelector('.ec-members');
             box.innerHTML = items.length ? items.map(function (i) {
@@ -675,6 +698,23 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 self.message('Removed ' + ids.length + ' title' + (ids.length === 1 ? '' : 's') + '.' + (r.Note ? ' ' + r.Note : ''));
                 self.afterManageChange(null, true);
             });
+        } else if (act === 'homeadd' || act === 'homeremove') {
+            var userIds = Array.prototype.map.call(ed.querySelectorAll('.ec-xhusers input:checked'), function (i) { return i.value; });
+            if (!userIds.length) {
+                self.message('Tick at least one user.', true);
+                return;
+            }
+            var parts = val('.ec-xhsort').split('|');
+            var job = act === 'homeadd'
+                ? this.saveHomeRows(id, userIds, { CustomName: val('.ec-xhname') || c.Name, SortBy: parts[0], SortOrder: parts[1], ViewType: val('.ec-xhview') })
+                : this.removeHomeRows(id, userIds);
+            loading.show();
+            job.then(function (n) {
+                self.message((act === 'homeadd' ? 'Home screen row saved for ' : 'Home screen row removed for ') + n + ' user' + (n === 1 ? '' : 's') + '.');
+                self.loadHomeRows(id);
+            }).catch(function (err) {
+                self.message('Home screen: ' + err.message, true);
+            }).then(function () { loading.hide(); });
         } else if (act === 'adopt') {
             post({ Action: 'Adopt' }, function () {
                 self.message('"' + c.Name + '" is now managed. It is add-only, so nothing is removed; add sources on the Managed tab.');
@@ -710,6 +750,116 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 self.render();
             });
         }
+    };
+
+    // ---- Home screen rows ---------------------------------------------------
+    // Uses Emby's own home screen API (as an admin), so rows look and behave exactly like ones a user adds in
+    // Settings > Home Screen, and Emby keeps each user's existing sections when the first custom one is added.
+
+    function api(method, path, body) {
+        return fetch(ApiClient.getUrl(path), {
+            method: method,
+            headers: headers(body ? { 'Content-Type': 'application/json' } : {}),
+            body: body ? JSON.stringify(body) : undefined,
+            cache: 'no-store'
+        }).then(function (r) {
+            if (!r.ok) {
+                throw new Error(path.split('?')[0] + ': HTTP ' + r.status);
+            }
+            return r.status === 204 ? null : r.text().then(function (t) { return t ? JSON.parse(t) : null; });
+        });
+    }
+
+    function sectionsOf(result) {
+        return Array.isArray(result) ? result : (result && (result.Items || result.Sections)) || [];
+    }
+
+    function findRow(sections, collectionId) {
+        return sections.filter(function (s) {
+            return s.SectionType === 'boxset' && String(s.ParentId) === String(collectionId);
+        })[0];
+    }
+
+    View.prototype.getUsers = function () {
+        if (!this.users) {
+            this.users = api('GET', 'Users').then(function (u) { return sectionsOf(u); });
+        }
+        return this.users;
+    };
+
+    View.prototype.loadHomeRows = function (collectionId) {
+        var self = this;
+        var ed = this.view.querySelector('.ec-editor');
+        return this.getUsers().then(function (users) {
+            return Promise.all(users.map(function (u) {
+                return api('GET', 'Users/' + u.Id + '/HomeSections?IsEditMode=true').then(function (r) {
+                    return { user: u, row: findRow(sectionsOf(r), collectionId) };
+                }).catch(function () { return { user: u, row: null }; });
+            }));
+        }).then(function (list) {
+            if (self.selectedId !== collectionId || !ed.querySelector('.ec-xhusers')) {
+                return;
+            }
+            var withRow = list.filter(function (x) { return x.row; });
+            ed.querySelector('.ec-xhusers').innerHTML = list.map(function (x) {
+                return '<label style="display:flex;gap:.5em;align-items:center;margin:.15em 0"><input type="checkbox" class="ec-check" value="' + esc(x.user.Id) + '" checked />' +
+                    esc(x.user.Name) + (x.row ? ' <small style="opacity:.6">(has this row)</small>' : '') + '</label>';
+            }).join('');
+            ed.querySelector('.ec-xhomestatus').textContent = withRow.length
+                ? 'On the home screen of ' + withRow.length + ' of ' + list.length + ' users.'
+                : 'Not on anyone\'s home screen yet. Rows are per user; pick who should see it.';
+            var first = withRow[0] && withRow[0].row;
+            if (first) {
+                if (first.CustomName) {
+                    ed.querySelector('.ec-xhname').value = first.CustomName;
+                }
+                var key = (first.SortBy || 'default') + '|' + (first.SortOrder || 'Ascending');
+                if (HOME_SORTS.some(function (o) { return o.value === key; })) {
+                    ed.querySelector('.ec-xhsort').value = key;
+                }
+                ed.querySelector('.ec-xhview').value = first.ViewType || '';
+            }
+        }).catch(function (err) {
+            var st = ed.querySelector('.ec-xhomestatus');
+            if (st) {
+                st.textContent = 'Could not read home screens: ' + err.message;
+            }
+        });
+    };
+
+    View.prototype.saveHomeRows = function (collectionId, userIds, opts) {
+        return Promise.all(userIds.map(function (uid) {
+            return api('GET', 'Users/' + uid + '/HomeSections?IsEditMode=true').then(function (r) {
+                var existing = findRow(sectionsOf(r), collectionId);
+                var section = Object.assign({}, existing || {}, {
+                    SectionType: 'boxset',
+                    ParentId: String(collectionId),
+                    CustomName: opts.CustomName,
+                    SortBy: opts.SortBy,
+                    SortOrder: opts.SortOrder,
+                    ViewType: opts.ViewType || null,
+                    ItemTypes: (existing && existing.ItemTypes) || [],
+                    ExcludedFolders: (existing && existing.ExcludedFolders) || [],
+                    IncludeNextUpInResume: true
+                });
+                delete section.ParentItem;
+                return api('POST', 'Users/' + uid + '/HomeSections', section);
+            });
+        })).then(function () { return userIds.length; });
+    };
+
+    View.prototype.removeHomeRows = function (collectionId, userIds) {
+        var removed = 0;
+        return Promise.all(userIds.map(function (uid) {
+            return api('GET', 'Users/' + uid + '/HomeSections?IsEditMode=true').then(function (r) {
+                var row = findRow(sectionsOf(r), collectionId);
+                if (!row) {
+                    return null;
+                }
+                removed++;
+                return api('POST', 'Users/' + uid + '/HomeSections/Delete', { Ids: [row.Id] });
+            });
+        })).then(function () { return removed; });
     };
 
     View.prototype.message = function (text, isError) {
