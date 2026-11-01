@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Emby 4.10+ runs on .NET 8, so this plugin targets net8.0 and references the
+    server's own assemblies directly (no NuGet). Point EmbyLibDir at a folder holding
+    these DLLs from the server's "system" folder (the Emby release .deb/.zip has them):
+      MediaBrowser.Common.dll, MediaBrowser.Controller.dll, MediaBrowser.Model.dll, SkiaSharp.dll
+    The referenced DLLs are NOT copied to the output; the server supplies them.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>EmbyCollections</AssemblyName>
+    <RootNamespace>EmbyCollections</RootNamespace>
+    <Version>0.1.0</Version>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EmbyLibDir Condition="'$(EmbyLibDir)' == ''">$(MSBuildProjectDirectory)/emby-lib</EmbyLibDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="MediaBrowser.Common"><HintPath>$(EmbyLibDir)/MediaBrowser.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="MediaBrowser.Controller"><HintPath>$(EmbyLibDir)/MediaBrowser.Controller.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="MediaBrowser.Model"><HintPath>$(EmbyLibDir)/MediaBrowser.Model.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SkiaSharp"><HintPath>$(EmbyLibDir)/SkiaSharp.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="src/Resources/TitleFont.ttf" LogicalName="EmbyCollections.TitleFont.ttf" />
+    <EmbeddedResource Include="src/Web/configPage.html" LogicalName="EmbyCollections.Web.configPage.html" />
+    <EmbeddedResource Include="src/Web/configPage.js" LogicalName="EmbyCollections.Web.configPage.js" />
+  </ItemGroup>
+
+</Project>

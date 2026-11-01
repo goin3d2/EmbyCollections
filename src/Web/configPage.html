@@ -1,0 +1,57 @@
+<div is="emby-scroller" class="view flex flex-direction-column scrollFrameY flex-grow" data-horizontal="false" data-forcescrollbar="true" data-centerfocus="true" data-bindheader="true" data-controller="__plugin/embycollectionsjs" data-title="Emby Collections">
+    <div class="scrollSlider flex-grow flex-direction-column padded-left padded-left-page padded-right padded-top-page padded-bottom-page">
+
+        <style>
+            .ec-wrap { max-width: 64em; }
+            .ec-section { margin: 0 0 2.2em; }
+            .ec-section h2 { margin: 0 0 .6em; }
+            .ec-hint { opacity: .7; font-size: .9em; margin: .3em 0 0; line-height: 1.4; }
+            .ec-field { display: grid; grid-template-columns: 12em minmax(0, 1fr); gap: .5em 1em; align-items: center; margin: .6em 0; }
+            .ec-field > span { opacity: .85; }
+            .ec-input, .ec-select { background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.18); border-radius: 4px; padding: .5em .6em; font: inherit; width: 100%; box-sizing: border-box; }
+            .ec-select option { color: #000; }
+            .ec-card { border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 1em 1.2em; margin: 0 0 1.2em; background: rgba(255,255,255,.03); }
+            .ec-cardhead { display: flex; gap: .8em; align-items: center; }
+            .ec-cardhead .ec-input { font-size: 1.15em; font-weight: 600; }
+            .ec-cardhead label { white-space: nowrap; display: flex; align-items: center; gap: .3em; }
+            .ec-sub { margin: 1em 0 .4em; font-weight: 600; opacity: .9; }
+            .ec-source { display: grid; grid-template-columns: 11em minmax(0, 1fr) auto; gap: .6em; align-items: center; margin: .4em 0; }
+            .ec-art { display: grid; grid-template-columns: minmax(0, 1fr) 9em; gap: 1.2em; align-items: start; }
+            .ec-thumb { width: 9em; aspect-ratio: 2 / 3; border-radius: 6px; background: rgba(255,255,255,.06) center / cover no-repeat; }
+            .ec-kometa { display: grid; grid-template-columns: repeat(auto-fill, minmax(6em, 1fr)); gap: .5em; margin: .6em 0 0; }
+            .ec-kometa button { padding: 0; border: 2px solid transparent; border-radius: 6px; background: none; cursor: pointer; }
+            .ec-kometa button:hover, .ec-kometa button.sel { border-color: #52b54b; }
+            .ec-kometa img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 4px; display: block; }
+            .ec-status { font-size: .9em; opacity: .8; margin: .8em 0 0; line-height: 1.5; }
+            .ec-status .err { color: #ff7f7f; }
+            .ec-actions { display: flex; flex-wrap: wrap; gap: .8em; margin: 1em 0 0; }
+            .ec-actions button, .ec-source button { margin: 0; }
+            .ec-small { padding: .35em .8em !important; font-size: .9em; }
+            .ec-msg { margin: 1em 0; min-height: 1.4em; }
+            .ec-msg.err { color: #ff7f7f; }
+            @media (max-width: 700px) { .ec-field, .ec-source, .ec-art { grid-template-columns: minmax(0, 1fr); } }
+        </style>
+
+        <div class="ec-wrap">
+            <div class="ec-section">
+                <h2>Settings</h2>
+                <div class="ec-field"><span>MDBList API key</span><input class="ec-input" type="password" data-key="MdbListApiKey" autocomplete="off" /></div>
+                <div class="ec-field"><span>TMDB API key</span><input class="ec-input" type="password" data-key="TmdbApiKey" autocomplete="off" /></div>
+                <div class="ec-field"><span>xtreamfs data folder</span><input class="ec-input" type="text" data-key="XtreamFsDataPath" placeholder="Default: Emby data folder/xtreamfs" /></div>
+                <label style="display:flex;gap:.4em;align-items:center;margin:.6em 0"><input type="checkbox" data-key="RemoveMissing" /><span>Remove items that drop off every source</span></label>
+                <p class="ec-hint">IMDb lists: add the list to MDBList (Lists → Add external list), then use that MDBList URL as an MDBList source. TMDB is only needed for TMDB collection posters and network/company logos on generated posters. <span class="ec-xtreaminfo"></span></p>
+            </div>
+
+            <div class="ec-section">
+                <h2>Collections</h2>
+                <div class="ec-collections"></div>
+                <div class="ec-actions">
+                    <button is="emby-button" type="button" class="raised btnAdd"><span>Add collection</span></button>
+                    <button is="emby-button" type="button" class="raised button-submit btnSave"><span>Save</span></button>
+                    <button is="emby-button" type="button" class="raised btnSyncAll"><span>Save and sync all</span></button>
+                </div>
+                <div class="ec-msg"></div>
+            </div>
+        </div>
+    </div>
+</div>
