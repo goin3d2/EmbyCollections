@@ -7,6 +7,12 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         { value: 'LibraryTag', name: 'Library tag', hint: 'Emby tag name' }
     ];
 
+    var SORTS = [
+        { value: 'Default', name: 'Leave as Emby has it' },
+        { value: 'ReleaseDate', name: 'Release date (oldest first)' },
+        { value: 'Name', name: 'Name' }
+    ];
+
     var ART_MODES = [
         { value: 'Auto', name: 'Auto (URL → Kometa → TMDB → generated)' },
         { value: 'Url', name: 'Poster URL' },
@@ -322,6 +328,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 '<label title="Never remove titles from this collection, only add"><input type="checkbox" class="ec-check" data-c="' + ci + '" data-f="OnlyAdd"' + (c.OnlyAdd ? ' checked' : '') + ' />Add only</label></div>' +
                 '<div class="ec-field"><span>Sort name</span><input class="ec-input" type="text" data-c="' + ci + '" data-f="SortName" value="' + esc(c.SortName) + '" placeholder="Optional" /></div>' +
                 '<div class="ec-field"><span>Overview</span><input class="ec-input" type="text" data-c="' + ci + '" data-f="Overview" value="' + esc(c.Overview) + '" placeholder="Optional" /></div>' +
+                '<div class="ec-field"><span>Sort order</span><select class="ec-select" data-c="' + ci + '" data-f="Sort">' + options(SORTS, c.Sort || 'Default') + '</select></div>' +
                 '<div class="ec-sub">Sources <span class="ec-hint">(combined: anything in any source)</span></div>' + sources +
                 '<button is="emby-button" type="button" class="raised ec-small" data-act="addsource" data-c="' + ci + '"><span>Add source</span></button>' +
                 '<div class="ec-sub">Artwork</div>' +
@@ -493,6 +500,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
             '<div class="ec-field"><span>Name</span><input class="ec-input ec-xname" type="text" value="' + esc(c.Name) + '" /></div>' +
             '<div class="ec-field"><span>Sort name</span><input class="ec-input ec-xsort" type="text" value="' + esc(c.SortName || '') + '" placeholder="Optional" /></div>' +
             '<div class="ec-field"><span>Overview</span><input class="ec-input ec-xoverview" type="text" value="' + esc(c.Overview || '') + '" placeholder="Optional" /></div>' +
+            '<div class="ec-field"><span>Sort order</span><select class="ec-select ec-xsortorder">' + options(SORTS.slice(1), c.Sort) + '</select></div>' +
             '<div class="ec-actions"><button is="emby-button" type="button" class="raised button-submit" data-xact="update"><span>Save details</span></button></div>' +
             '</div><div class="ec-thumb ec-xthumb" style="' + (c.HasPoster ? 'background-image:url(&quot;' + esc(posterUrl(c.Id, 450)) + '&quot;)' : '') + '"></div></div>' +
 
@@ -578,7 +586,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
             this.selectedId = null;
             this.view.querySelectorAll('.ec-tile').forEach(function (t) { t.classList.remove('sel'); });
         } else if (act === 'update') {
-            post({ Action: 'Update', Name: val('.ec-xname'), SortName: val('.ec-xsort'), Overview: val('.ec-xoverview') }, function () {
+            post({ Action: 'Update', Name: val('.ec-xname'), SortName: val('.ec-xsort'), Overview: val('.ec-xoverview'), Sort: val('.ec-xsortorder') }, function () {
                 self.message('Saved.');
                 self.afterManageChange(c.ManagedId);
             });

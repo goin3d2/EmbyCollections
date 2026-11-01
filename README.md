@@ -32,6 +32,10 @@ In **Auto** mode the plugin tries each option in order and uses the first one th
 
 A poster is only saved again when it changes.
 
+## Sort order
+
+Each collection can set Emby's display order: **Release date** (oldest first) or **Name**. Emby has no newest-first or custom order for collections. A different sort picked on a collection page is saved only on that device, so the plugin can't set it.
+
 ## Managing existing collections
 
 The **All collections** tab lists every collection on the server, whether this plugin made it or not. Pick one to:
@@ -71,7 +75,6 @@ dotnet build -c Release -o out
 ## Planned
 
 - Combine sources with intersect and exclude, not just union.
-- Ordering by list rank. Emby BoxSets only sort by premiere date or sort name.
 - A missing-items report, and optionally sending missing titles to Radarr/Sonarr.
 - Pasting a ThePosterDB or MediUX set URL and having the plugin pick the right poster from the set.
 

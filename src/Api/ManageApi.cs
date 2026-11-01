@@ -54,6 +54,9 @@ namespace EmbyCollections.Api
 
         public string Overview { get; set; }
 
+        /// <summary>For Update: ReleaseDate or Name (empty leaves it).</summary>
+        public string Sort { get; set; }
+
         /// <summary>For SetArtwork: Url, Kometa, TmdbCollection, Generated or Upload.</summary>
         public string ArtworkMode { get; set; }
 
@@ -113,6 +116,7 @@ namespace EmbyCollections.Api
                         b.SortName,
                         b.Overview,
                         Count = this.Members(b.InternalId).Length,
+                        Sort = b.DisplayOrder == CollectionDisplayOrder.PremiereDate ? "ReleaseDate" : "Name",
                         HasPoster = b.HasImage(ImageType.Primary, 0),
                         ManagedId = def?.Id,
                         ManagedSources = def?.Sources.Count ?? 0,
@@ -188,6 +192,12 @@ namespace EmbyCollections.Api
 
             box.SortName = string.IsNullOrWhiteSpace(body.SortName) ? null : body.SortName.Trim();
             box.Overview = body.Overview ?? string.Empty;
+            CollectionSort sort = CollectionSort.Default;
+            if (Enum.TryParse(body.Sort, true, out sort) && CollectionSyncer.DisplayOrderFor(sort) is CollectionDisplayOrder order)
+            {
+                box.DisplayOrder = order;
+            }
+
             box.UpdateToRepository(ItemUpdateType.MetadataEdit);
             if (def != null)
             {
@@ -200,6 +210,10 @@ namespace EmbyCollections.Api
                         d.Name = box.Name;
                         d.SortName = body.SortName?.Trim() ?? string.Empty;
                         d.Overview = body.Overview ?? string.Empty;
+                        if (sort != CollectionSort.Default)
+                        {
+                            d.Sort = sort;
+                        }
                     }
                 });
             }

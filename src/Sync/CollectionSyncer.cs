@@ -199,10 +199,27 @@ namespace EmbyCollections.Sync
                 changed = true;
             }
 
+            var order = DisplayOrderFor(def.Sort);
+            if (order.HasValue && box.DisplayOrder != order.Value)
+            {
+                box.DisplayOrder = order.Value;
+                changed = true;
+            }
+
             if (changed)
             {
                 box.UpdateToRepository(ItemUpdateType.MetadataEdit);
             }
+        }
+
+        public static CollectionDisplayOrder? DisplayOrderFor(CollectionSort sort)
+        {
+            return sort switch
+            {
+                CollectionSort.ReleaseDate => CollectionDisplayOrder.PremiereDate,
+                CollectionSort.Name => CollectionDisplayOrder.SortName,
+                _ => null,
+            };
         }
 
         private async Task ApplyArtworkAsync(BoxSet box, CollectionDefinition def, Settings settings, List<long> members, CollectionStatus status, CancellationToken ct)

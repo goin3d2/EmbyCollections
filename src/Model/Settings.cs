@@ -54,6 +54,9 @@ namespace EmbyCollections.Model
 
         public List<SourceDefinition> Sources { get; set; } = new List<SourceDefinition>();
 
+        /// <summary>Display order Emby uses for the collection; Default leaves it alone.</summary>
+        public CollectionSort Sort { get; set; } = CollectionSort.Default;
+
         /// <summary>Never remove members, only add (set for collections adopted from "All collections").</summary>
         public bool OnlyAdd { get; set; }
 
@@ -78,6 +81,16 @@ namespace EmbyCollections.Model
             this.Sources = this.Sources.Where(s => s != null && !string.IsNullOrWhiteSpace(s.Value)).ToList();
             this.Artwork ??= new ArtworkDefinition();
         }
+    }
+
+    public enum CollectionSort
+    {
+        Default,
+
+        /// <summary>Release date, oldest first (Emby has no descending collection order).</summary>
+        ReleaseDate,
+
+        Name,
     }
 
     public enum CombineMode
