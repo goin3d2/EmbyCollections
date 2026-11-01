@@ -61,7 +61,15 @@ namespace EmbyCollections.Artwork
         /// <summary>Poster paths whose file name matches the query: exact name first, then names containing it.</summary>
         public async Task<List<string>> SearchAsync(string query, int limit, CancellationToken ct)
         {
+            query = (query ?? string.Empty).Trim();
+            if (query.Contains('/'))
+            {
+                query = Path.GetFileNameWithoutExtension(query); // a pasted path searches by its file name
+            }
+
             var q = Norm(query);
+            // "Disney Plus" / "Paramount Plus" are named with "+" in the image set.
+            var alt = Norm(System.Text.RegularExpressions.Regex.Replace(query, @"\s*\bplus\b", "+", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
             if (q.Length == 0)
             {
                 return new List<string>();
@@ -83,13 +91,24 @@ namespace EmbyCollections.Artwork
 
             var scored = all
                 .Select(p => (p, stem: Norm(Path.GetFileNameWithoutExtension(p))))
-                .Select(x => (x.p, score: x.stem == q ? 0 : x.stem.StartsWith(q, StringComparison.Ordinal) ? 1 : x.stem.Contains(q, StringComparison.Ordinal) ? 2 : -1))
+                .Select(x => (x.p, score: Math.Max(Score(x.stem, q), Score(x.stem, alt))))
                 .Where(x => x.score >= 0)
-                .OrderBy(x => x.score)
+                .OrderByDescending(x => x.score)
                 .ThenBy(x => Rank(x.p))
                 .ThenBy(x => x.p.Length)
                 .Select(x => x.p);
             return scored.Take(Math.Max(1, limit)).ToList();
+        }
+
+        /// <summary>Higher is better: exact 3, starts with 2, contains 1, no match -1 (negated for ordering).</summary>
+        private static int Score(string stem, string q)
+        {
+            if (q.Length == 0)
+            {
+                return -1;
+            }
+
+            return stem == q ? 3 : stem.StartsWith(q, StringComparison.Ordinal) ? 2 : stem.Contains(q, StringComparison.Ordinal) ? 1 : -1;
         }
 
         /// <summary>"Apple TV+ Movies" and "Apple TV+_movies" both become "appletv+movies".</summary>

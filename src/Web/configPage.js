@@ -94,6 +94,20 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
 
         list.addEventListener('input', function (e) { self.onField(e.target, false); });
         list.addEventListener('change', function (e) { self.onField(e.target, true); });
+        // Enter in a Kometa search box runs Find.
+        view.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter' || !e.target.classList) {
+                return;
+            }
+            var box = e.target.classList.contains('ec-ksearch') || e.target.classList.contains('ec-xkometa') ? e.target : null;
+            if (box) {
+                e.preventDefault();
+                var row = box.parentNode.querySelector('button[data-act="kometa"], button[data-xact="kometa"]');
+                if (row) {
+                    row.click();
+                }
+            }
+        });
         list.addEventListener('click', function (e) {
             var btn = e.target.closest('button[data-act]');
             if (btn) {
@@ -245,9 +259,11 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         } else if (act === 'kometa') {
             var box = this.view.querySelector('.ec-kometa[data-c="' + ci + '"]');
             box.innerHTML = '<span class="ec-hint">Searching…</span>';
-            getJson('KometaSearch?Query=' + encodeURIComponent(col.Name)).then(function (hits) {
+            var searchEl = this.view.querySelector('.ec-ksearch[data-c="' + ci + '"]');
+            var query = (searchEl && searchEl.value.trim()) || col.Name;
+            getJson('KometaSearch?Query=' + encodeURIComponent(query)).then(function (hits) {
                 if (!hits.length) {
-                    box.innerHTML = '<span class="ec-hint">No Kometa poster matches "' + esc(col.Name) + '". Try a path like streaming/color/Netflix.jpg.</span>';
+                    box.innerHTML = '<span class="ec-hint">No Kometa poster matches "' + esc(query) + '". Try another word, e.g. Netflix, Christmas, Horror.</span>';
                     return;
                 }
                 box.innerHTML = hits.map(function (h) {
@@ -304,8 +320,9 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 art += '<div class="ec-field"><span>Poster URL</span><input class="ec-input" type="text" data-c="' + ci + '" data-f="Artwork.Url" value="' + esc(a.Url) + '" placeholder="ThePosterDB / MediUX / any image link" /></div>';
             }
             if (show('Kometa')) {
-                art += '<div class="ec-field"><span>Kometa image</span><div style="display:flex;gap:.6em"><input class="ec-input" type="text" data-c="' + ci + '" data-f="Artwork.KometaPath" value="' + esc(a.KometaPath) + '" placeholder="Empty: match by collection name" />' +
+                art += '<div class="ec-field"><span>Search Kometa</span><div style="display:flex;gap:.6em"><input class="ec-input ec-ksearch" type="text" data-c="' + ci + '" placeholder="e.g. Netflix, Christmas, Horror (empty: collection name)" />' +
                     '<button is="emby-button" type="button" class="raised ec-small" data-act="kometa" data-c="' + ci + '"><span>Find</span></button></div></div>' +
+                    '<div class="ec-field"><span>Kometa image</span><input class="ec-input" type="text" data-c="' + ci + '" data-f="Artwork.KometaPath" value="' + esc(a.KometaPath) + '" placeholder="Picked image; empty: best match for the collection name" /></div>' +
                     '<div class="ec-kometa" data-c="' + ci + '"></div>';
             }
             if (show('TmdbCollection')) {

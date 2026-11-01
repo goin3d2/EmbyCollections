@@ -11,7 +11,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>EmbyCollections</AssemblyName>
     <RootNamespace>EmbyCollections</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>
