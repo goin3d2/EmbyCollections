@@ -54,6 +54,9 @@ namespace EmbyCollections.Model
 
         public List<SourceDefinition> Sources { get; set; } = new List<SourceDefinition>();
 
+        /// <summary>Never remove members, only add (set for collections adopted from "All collections").</summary>
+        public bool OnlyAdd { get; set; }
+
         public ArtworkDefinition Artwork { get; set; } = new ArtworkDefinition();
 
         /// <summary>Emby internal id of the BoxSet this plugin manages; 0 until first sync.</summary>

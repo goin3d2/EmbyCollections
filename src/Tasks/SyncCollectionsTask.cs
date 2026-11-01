@@ -34,14 +34,18 @@ namespace EmbyCollections.Tasks
                 new XtreamFsCategorySource(() => plugin.XtreamFsDataPath),
                 new LibraryTagSource(libraryManager),
             };
-            var artwork = new ArtworkResolver(new IArtworkProvider[]
+            this.syncer = new CollectionSyncer(libraryManager, collectionManager, providerManager, fileSystem, logger, sources, BuildArtwork());
+        }
+
+        public static ArtworkResolver BuildArtwork()
+        {
+            return new ArtworkResolver(new IArtworkProvider[]
             {
                 new UrlArtworkProvider(),
                 Kometa,
                 new TmdbCollectionArtworkProvider(),
                 new GeneratedArtworkProvider(),
             });
-            this.syncer = new CollectionSyncer(libraryManager, collectionManager, providerManager, fileSystem, logger, sources, artwork);
         }
 
         /// <summary>One shared instance so the Kometa file index is fetched once per server run.</summary>

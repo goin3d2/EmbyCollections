@@ -124,7 +124,7 @@ namespace EmbyCollections.Sync
                 var add = desired.Where(id => !currentSet.Contains(id)).ToArray();
 
                 // A failed source would look like "everything was removed"; never remove on a partial read.
-                var remove = settings.RemoveMissing && failedSources == 0
+                var remove = settings.RemoveMissing && !def.OnlyAdd && def.Sources.Count > 0 && failedSources == 0
                     ? current.Where(id => !desiredSet.Contains(id)).ToArray()
                     : Array.Empty<long>();
                 if (failedSources > 0 && current.Any(id => !desiredSet.Contains(id)))
@@ -225,26 +225,12 @@ namespace EmbyCollections.Sync
                 return;
             }
 
-            using var stream = new MemoryStream(image.Data);
-            await this.providerManager.SaveImage(
-                box,
-                this.libraryManager.GetLibraryOptions(box),
-                stream,
-                image.MimeType.AsMemory(),
-                ImageType.Primary,
-                null,
-                Array.Empty<long>(),
-                new DirectoryService(this.fileSystem),
-                true,
-                ct).ConfigureAwait(false);
-
-            // SaveImage writes the file and sets the image on the item; the item still has to be saved.
-            box.UpdateToRepository(ItemUpdateType.ImageUpdate);
+            await PosterWriter.SaveAsync(this.providerManager, this.libraryManager, this.fileSystem, box, image, ct).ConfigureAwait(false);
             def.Artwork.AppliedKey = image.Key;
             this.logger.Info("{0}: poster set from {1}", def.Name, image.Source);
         }
 
-        private IReadOnlyList<string> MemberPosters(List<long> members, int count)
+        public IReadOnlyList<string> MemberPosters(IEnumerable<long> members, int count)
         {
             var list = new List<string>();
             foreach (var id in members)
@@ -262,6 +248,38 @@ namespace EmbyCollections.Sync
             }
 
             return list;
+        }
+    }
+
+    /// <summary>Saves a poster onto an item. Shared by sync and the "All collections" editor.</summary>
+    public static class PosterWriter
+    {
+        public static async Task SaveAsync(IProviderManager providerManager, ILibraryManager libraryManager, IFileSystem fileSystem, BaseItem item, ArtworkImage image, CancellationToken ct)
+        {
+            using var stream = new MemoryStream(image.Data);
+            await providerManager.SaveImage(
+                item,
+                libraryManager.GetLibraryOptions(item),
+                stream,
+                image.MimeType.AsMemory(),
+                ImageType.Primary,
+                null,
+                Array.Empty<long>(),
+                new DirectoryService(fileSystem),
+                true,
+                ct).ConfigureAwait(false);
+
+            // SaveImage writes the file and sets the image on the item; the item still has to be saved.
+            item.UpdateToRepository(ItemUpdateType.ImageUpdate);
+        }
+
+        public static void Remove(BaseItem item)
+        {
+            if (item.HasImage(ImageType.Primary, 0))
+            {
+                item.DeleteImage(ImageType.Primary, 0);
+                item.UpdateToRepository(ItemUpdateType.ImageUpdate);
+            }
         }
     }
 }

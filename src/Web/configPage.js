@@ -112,6 +112,30 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 }
             });
         });
+
+        view.querySelector('.ec-tabs').addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-tab]');
+            if (b) {
+                self.showTab(b.getAttribute('data-tab'));
+            }
+        });
+        var all = view.querySelector('[data-panel="all"]');
+        all.addEventListener('click', function (e) {
+            var tile = e.target.closest('.ec-tile');
+            if (tile) {
+                self.openEditor(parseInt(tile.getAttribute('data-id'), 10));
+                return;
+            }
+            var btn = e.target.closest('button[data-xact]');
+            if (btn) {
+                self.editorAction(btn.getAttribute('data-xact'), btn);
+            }
+        });
+        all.addEventListener('change', function (e) {
+            if (e.target.classList.contains('ec-xmode') || e.target.classList.contains('ec-xstyle')) {
+                self.renderArtFields();
+            }
+        });
     }
 
     Object.assign(View.prototype, BaseView.prototype);
@@ -294,7 +318,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
 
             return '<div class="ec-card">' +
                 '<div class="ec-cardhead"><input class="ec-input" type="text" data-c="' + ci + '" data-f="Name" value="' + esc(c.Name) + '" />' +
-                '<label><input type="checkbox" class="ec-check" data-c="' + ci + '" data-f="Enabled"' + (c.Enabled ? ' checked' : '') + ' />Enabled</label></div>' +
+                '<label><input type="checkbox" class="ec-check" data-c="' + ci + '" data-f="Enabled"' + (c.Enabled ? ' checked' : '') + ' />Enabled</label>' +
+                '<label title="Never remove titles from this collection, only add"><input type="checkbox" class="ec-check" data-c="' + ci + '" data-f="OnlyAdd"' + (c.OnlyAdd ? ' checked' : '') + ' />Add only</label></div>' +
                 '<div class="ec-field"><span>Sort name</span><input class="ec-input" type="text" data-c="' + ci + '" data-f="SortName" value="' + esc(c.SortName) + '" placeholder="Optional" /></div>' +
                 '<div class="ec-field"><span>Overview</span><input class="ec-input" type="text" data-c="' + ci + '" data-f="Overview" value="' + esc(c.Overview) + '" placeholder="Optional" /></div>' +
                 '<div class="ec-sub">Sources <span class="ec-hint">(combined: anything in any source)</span></div>' + sources +
@@ -412,6 +437,254 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         }).catch(function (err) {
             self.message('Could not start sync: ' + err.message, true);
         });
+    };
+
+    // ---- All collections ------------------------------------------------
+
+    View.prototype.showTab = function (tab) {
+        this.view.querySelectorAll('.ec-tabs button').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === tab); });
+        this.view.querySelectorAll('.ec-panel').forEach(function (p) { p.hidden = p.getAttribute('data-panel') !== tab; });
+        this.message('');
+        if (tab === 'all') {
+            this.loadExisting();
+        }
+    };
+
+    function posterUrl(id, h) {
+        return ApiClient.getUrl('Items/' + id + '/Images/Primary', { maxHeight: h || 360, tag: Date.now() });
+    }
+
+    View.prototype.loadExisting = function () {
+        var self = this;
+        var grid = this.view.querySelector('.ec-grid');
+        grid.innerHTML = '<span class="ec-hint">Loading…</span>';
+        return getJson('Existing').then(function (list) {
+            self.existing = list;
+            if (!list.length) {
+                grid.innerHTML = '<span class="ec-hint">This server has no collections yet.</span>';
+                return;
+            }
+            grid.innerHTML = list.map(function (c) {
+                return '<button type="button" class="ec-tile' + (c.Id === self.selectedId ? ' sel' : '') + '" data-id="' + c.Id + '">' +
+                    '<div class="ec-thumb" style="' + (c.HasPoster ? 'background-image:url(&quot;' + esc(posterUrl(c.Id, 300)) + '&quot;)' : '') + '"></div>' +
+                    '<b title="' + esc(c.Name) + '">' + esc(c.Name) + '</b>' +
+                    '<small>' + c.Count + ' title' + (c.Count === 1 ? '' : 's') + (c.ManagedId ? '<span class="ec-badge">Managed</span>' : '') + '</small></button>';
+            }).join('');
+        }).catch(function (err) {
+            grid.innerHTML = '<span class="ec-hint err">' + esc(err.message) + '</span>';
+        });
+    };
+
+    View.prototype.openEditor = function (id) {
+        var self = this;
+        var c = (this.existing || []).filter(function (x) { return x.Id === id; })[0];
+        if (!c) {
+            return;
+        }
+        this.selectedId = id;
+        this.view.querySelectorAll('.ec-tile').forEach(function (t) { t.classList.toggle('sel', parseInt(t.getAttribute('data-id'), 10) === id); });
+        var ed = this.view.querySelector('.ec-editor');
+        var managedNote = c.ManagedId
+            ? '<p class="ec-hint">Managed by this plugin' + (c.ManagedSources ? ' (synced from ' + c.ManagedSources + ' source' + (c.ManagedSources === 1 ? '' : 's') + '). Setting a poster here stops sync from replacing it.' : ' (no sources yet: add some on the Managed tab).') + '</p>'
+            : '';
+        ed.innerHTML = '<div class="ec-card">' +
+            '<div class="ec-art"><div>' +
+            '<h2 style="margin:0 0 .4em">' + esc(c.Name) + '</h2>' + managedNote +
+            '<div class="ec-field"><span>Name</span><input class="ec-input ec-xname" type="text" value="' + esc(c.Name) + '" /></div>' +
+            '<div class="ec-field"><span>Sort name</span><input class="ec-input ec-xsort" type="text" value="' + esc(c.SortName || '') + '" placeholder="Optional" /></div>' +
+            '<div class="ec-field"><span>Overview</span><input class="ec-input ec-xoverview" type="text" value="' + esc(c.Overview || '') + '" placeholder="Optional" /></div>' +
+            '<div class="ec-actions"><button is="emby-button" type="button" class="raised button-submit" data-xact="update"><span>Save details</span></button></div>' +
+            '</div><div class="ec-thumb ec-xthumb" style="' + (c.HasPoster ? 'background-image:url(&quot;' + esc(posterUrl(c.Id, 450)) + '&quot;)' : '') + '"></div></div>' +
+
+            '<div class="ec-sub">Poster</div>' +
+            '<div class="ec-field"><span>New poster from</span><select class="ec-select ec-xmode">' +
+            options([{ value: 'Kometa', name: 'Kometa default image' }, { value: 'Url', name: 'Poster URL' }, { value: 'Upload', name: 'Upload a file' },
+                { value: 'Generated', name: 'Generated' }, { value: 'TmdbCollection', name: 'TMDB collection' }], 'Kometa') + '</select></div>' +
+            '<div class="ec-xartfields"></div>' +
+            '<div class="ec-actions"><button is="emby-button" type="button" class="raised button-submit" data-xact="setart"><span>Set poster</span></button>' +
+            '<button is="emby-button" type="button" class="raised" data-xact="removeart"><span>Remove poster</span></button></div>' +
+
+            '<div class="ec-sub">Titles</div><div class="ec-members"><span class="ec-hint">Loading…</span></div>' +
+            '<div class="ec-actions"><button is="emby-button" type="button" class="raised" data-xact="removeitems"><span>Remove selected titles</span></button></div>' +
+
+            '<div class="ec-sub">Collection</div><div class="ec-actions">' +
+            (c.ManagedId ? '' : '<button is="emby-button" type="button" class="raised" data-xact="adopt"><span>Manage with this plugin</span></button>') +
+            '<button is="emby-button" type="button" class="raised ec-danger" data-xact="delete"><span>Delete collection</span></button>' +
+            '<button is="emby-button" type="button" class="raised" data-xact="close"><span>Close</span></button></div>' +
+            '</div>';
+        this.renderArtFields();
+        getJson('Existing/' + id + '/Items').then(function (items) {
+            var box = ed.querySelector('.ec-members');
+            box.innerHTML = items.length ? items.map(function (i) {
+                return '<label><input type="checkbox" class="ec-check" value="' + i.Id + '" /><span>' + esc(i.Name) + (i.Year ? ' (' + i.Year + ')' : '') + ' <small style="opacity:.6">' + esc(i.Type) + '</small></span></label>';
+            }).join('') : '<span class="ec-hint">No titles.</span>';
+        });
+        ed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    View.prototype.renderArtFields = function () {
+        var ed = this.view.querySelector('.ec-editor');
+        var mode = ed.querySelector('.ec-xmode').value;
+        var styleEl = ed.querySelector('.ec-xstyle');
+        var style = styleEl ? styleEl.value : 'Title';
+        var html = '';
+        if (mode === 'Kometa') {
+            html = '<div class="ec-field"><span>Kometa image</span><div style="display:flex;gap:.6em"><input class="ec-input ec-xkometa" type="text" placeholder="Search or pick below" />' +
+                '<button is="emby-button" type="button" class="raised ec-small" data-xact="kometa"><span>Find</span></button></div></div><div class="ec-kometa ec-xkometahits"></div>';
+        } else if (mode === 'Url') {
+            html = '<div class="ec-field"><span>Poster URL</span><input class="ec-input ec-xurl" type="text" placeholder="ThePosterDB / MediUX / any image link" /></div>';
+        } else if (mode === 'Upload') {
+            html = '<div class="ec-field"><span>Image file</span><input class="ec-xfile" type="file" accept="image/*" /></div>';
+        } else if (mode === 'TmdbCollection') {
+            html = '<div class="ec-field"><span>TMDB collection id</span><input class="ec-input ec-xtmdb" type="number" min="1" placeholder="e.g. 10 (Star Wars)" /></div>';
+        } else if (mode === 'Generated') {
+            html = '<div class="ec-field"><span>Style</span><select class="ec-select ec-xstyle">' +
+                options([{ value: 'Title', name: 'Title on gradient' }, { value: 'Mosaic', name: 'Mosaic of member posters' }], style) + '</select></div>' +
+                (style === 'Mosaic' ? '' : '<div class="ec-field"><span>Logo (TMDB)</span><input class="ec-input ec-xlogo" type="text" placeholder="Netflix, A24, network:213" /></div>') +
+                '<div class="ec-field"><span>Gradient</span><div style="display:flex;gap:.6em"><input type="color" class="ec-xc1" value="#1f2a44" /><input type="color" class="ec-xc2" value="#0b0f19" /></div></div>';
+        }
+        ed.querySelector('.ec-xartfields').innerHTML = html;
+    };
+
+    function readFile(file) {
+        return new Promise(function (resolve, reject) {
+            var r = new FileReader();
+            r.onload = function () { resolve(String(r.result).split(',')[1]); };
+            r.onerror = function () { reject(new Error('Could not read the file')); };
+            r.readAsDataURL(file);
+        });
+    }
+
+    View.prototype.editorAction = function (act, btn) {
+        var self = this;
+        var ed = this.view.querySelector('.ec-editor');
+        var id = this.selectedId;
+        var c = (this.existing || []).filter(function (x) { return x.Id === id; })[0];
+        var val = function (sel) { var el = ed.querySelector(sel); return el ? el.value : ''; };
+        var post = function (body, done) {
+            loading.show();
+            return postJson('Existing/' + id + '/Action', body).then(function (r) {
+                if (r && r.Ok === false) {
+                    throw new Error(r.Message || 'Failed');
+                }
+                done(r || {});
+            }).catch(function (err) {
+                self.message(err.message, true);
+            }).then(function () { loading.hide(); });
+        };
+
+        if (act === 'close') {
+            ed.innerHTML = '';
+            this.selectedId = null;
+            this.view.querySelectorAll('.ec-tile').forEach(function (t) { t.classList.remove('sel'); });
+        } else if (act === 'update') {
+            post({ Action: 'Update', Name: val('.ec-xname'), SortName: val('.ec-xsort'), Overview: val('.ec-xoverview') }, function () {
+                self.message('Saved.');
+                self.afterManageChange(c.ManagedId);
+            });
+        } else if (act === 'kometa') {
+            var q = val('.ec-xkometa') || c.Name;
+            var hitsBox = ed.querySelector('.ec-xkometahits');
+            hitsBox.innerHTML = '<span class="ec-hint">Searching…</span>';
+            getJson('KometaSearch?Query=' + encodeURIComponent(q)).then(function (hits) {
+                hitsBox.innerHTML = hits.length ? hits.map(function (h) {
+                    return '<button type="button" data-xact="pick" data-path="' + esc(h.Path) + '" title="' + esc(h.Path) + '"><img loading="lazy" src="' + esc(h.Url) + '" alt="" /></button>';
+                }).join('') : '<span class="ec-hint">No Kometa poster matches "' + esc(q) + '".</span>';
+            }).catch(function (err) { hitsBox.innerHTML = '<span class="ec-hint err">' + esc(err.message) + '</span>'; });
+        } else if (act === 'pick') {
+            ed.querySelector('.ec-xkometa').value = btn.getAttribute('data-path');
+            ed.querySelectorAll('.ec-xkometahits button').forEach(function (b) { b.classList.toggle('sel', b === btn); });
+        } else if (act === 'setart') {
+            var mode = val('.ec-xmode');
+            var body = { Action: 'SetArtwork', ArtworkMode: mode, Artwork: {} };
+            var go = function () {
+                post(body, function (r) {
+                    self.message('Poster set' + (r.Source ? ' (' + r.Source + ')' : '') + '.');
+                    ed.querySelector('.ec-xthumb').style.backgroundImage = 'url("' + posterUrl(id, 450) + '")';
+                    self.afterManageChange(c.ManagedId, true);
+                });
+            };
+            if (mode === 'Kometa') {
+                var k = val('.ec-xkometa');
+                if (!k || k.indexOf('/') < 0) {
+                    self.message('Pick a Kometa poster first (Find, then click one).', true);
+                    return;
+                }
+                body.Artwork.KometaPath = k;
+            } else if (mode === 'Url') {
+                body.Artwork.Url = val('.ec-xurl');
+            } else if (mode === 'TmdbCollection') {
+                body.Artwork.TmdbCollectionId = parseInt(val('.ec-xtmdb'), 10) || 0;
+            } else if (mode === 'Generated') {
+                body.Artwork.Style = val('.ec-xstyle') || 'Title';
+                body.Artwork.LogoQuery = val('.ec-xlogo');
+                body.Artwork.ColorTop = val('.ec-xc1');
+                body.Artwork.ColorBottom = val('.ec-xc2');
+            } else if (mode === 'Upload') {
+                var f = ed.querySelector('.ec-xfile').files[0];
+                if (!f) {
+                    self.message('Choose an image file first.', true);
+                    return;
+                }
+                readFile(f).then(function (data) {
+                    body.Data = data;
+                    body.MimeType = f.type || 'image/jpeg';
+                    go();
+                }).catch(function (err) { self.message(err.message, true); });
+                return;
+            }
+            go();
+        } else if (act === 'removeart') {
+            post({ Action: 'RemoveArtwork' }, function () {
+                self.message('Poster removed.');
+                ed.querySelector('.ec-xthumb').style.backgroundImage = '';
+                self.afterManageChange(c.ManagedId, true);
+            });
+        } else if (act === 'removeitems') {
+            var ids = Array.prototype.map.call(ed.querySelectorAll('.ec-members input:checked'), function (i) { return parseInt(i.value, 10); });
+            if (!ids.length) {
+                self.message('Tick the titles to remove first.', true);
+                return;
+            }
+            post({ Action: 'RemoveItems', ItemIds: ids }, function (r) {
+                self.message('Removed ' + ids.length + ' title' + (ids.length === 1 ? '' : 's') + '.' + (r.Note ? ' ' + r.Note : ''));
+                self.afterManageChange(null, true);
+            });
+        } else if (act === 'adopt') {
+            post({ Action: 'Adopt' }, function () {
+                self.message('"' + c.Name + '" is now managed. It is add-only, so nothing is removed; add sources on the Managed tab.');
+                self.afterManageChange(true, true);
+            });
+        } else if (act === 'delete') {
+            if (!window.confirm('Delete the collection "' + c.Name + '"? The titles in it are not touched.')) {
+                return;
+            }
+            post({ Action: 'Delete' }, function () {
+                self.message('Deleted "' + c.Name + '".');
+                ed.innerHTML = '';
+                self.selectedId = null;
+                self.afterManageChange(c.ManagedId);
+            });
+        }
+    };
+
+    /// Reload what changed: the grid, the open editor, and the Managed tab when a managed collection changed.
+    View.prototype.afterManageChange = function (managedChanged, reopen) {
+        var self = this;
+        this.loadExisting().then(function () {
+            if (reopen && self.selectedId) {
+                var keepMsg = self.view.querySelector('.ec-msg').textContent;
+                self.openEditor(self.selectedId);
+                self.message(keepMsg);
+            }
+        });
+        if (managedChanged) {
+            getJson('Settings').then(function (cfg) {
+                self.config = cfg;
+                self.fillSettings();
+                self.render();
+            });
+        }
     };
 
     View.prototype.message = function (text, isError) {

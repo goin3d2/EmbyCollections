@@ -21,7 +21,7 @@
             .ec-sub { margin: 1em 0 .4em; font-weight: 600; opacity: .9; }
             .ec-source { display: grid; grid-template-columns: 11em minmax(0, 1fr) auto; gap: .6em; align-items: center; margin: .4em 0; }
             .ec-art { display: grid; grid-template-columns: minmax(0, 1fr) 9em; gap: 1.2em; align-items: start; }
-            .ec-thumb { width: 9em; aspect-ratio: 2 / 3; border-radius: 6px; background: rgba(255,255,255,.06) center / cover no-repeat; }
+            .ec-thumb { width: 9em; aspect-ratio: 2 / 3; border-radius: 6px; background: rgba(128,128,128,.2) center / cover no-repeat; }
             .ec-kometa { display: grid; grid-template-columns: repeat(auto-fill, minmax(6em, 1fr)); gap: .5em; margin: .6em 0 0; }
             .ec-kometa button { padding: 0; border: 2px solid transparent; border-radius: 6px; background: none; cursor: pointer; }
             .ec-kometa button:hover, .ec-kometa button.sel { border-color: #52b54b; }
@@ -31,12 +31,33 @@
             .ec-actions { display: flex; flex-wrap: wrap; gap: .8em; margin: 1em 0 0; }
             .ec-actions button, .ec-source button { margin: 0; }
             .ec-small { padding: .35em .8em !important; font-size: .9em; }
-            .ec-msg { margin: 1em 0; min-height: 1.4em; }
-            .ec-msg.err { color: #ff7f7f; }
+            .ec-msg { margin: 0 0 1em; min-height: 1.4em; font-weight: 600; } .ec-msg:empty { display: none; }
+            .ec-msg.err { color: #d9534f; }
+            .ec-tabs { display: flex; gap: .5em; margin: 0 0 1.6em; border-bottom: 1px solid rgba(128,128,128,.35); }
+            .ec-tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: inherit; font: inherit; font-size: 1.05em; padding: .6em 1em; cursor: pointer; opacity: .75; }
+            .ec-tabs button.active { border-bottom-color: #52b54b; opacity: 1; font-weight: 600; }
+            .ec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9em, 1fr)); gap: 1em; }
+            .ec-tile { background: none; border: 2px solid transparent; border-radius: 8px; padding: .3em; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+            .ec-tile:hover, .ec-tile.sel { border-color: #52b54b; }
+            .ec-tile .ec-thumb { width: 100%; }
+            .ec-tile b { display: block; margin: .4em 0 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .ec-tile small { opacity: .7; }
+            .ec-badge { display: inline-block; font-size: .75em; padding: .1em .5em; border-radius: 1em; background: #52b54b; color: #fff; margin-left: .3em; }
+            .ec-editor { margin: 0 0 2em; }
+            .ec-members { max-height: 22em; overflow: auto; border: 1px solid rgba(128,128,128,.35); border-radius: 6px; padding: .4em .8em; }
+            .ec-members label { display: flex; gap: .5em; align-items: center; padding: .2em 0; }
+            .ec-danger { background: #c0392b !important; color: #fff !important; }
             @media (max-width: 700px) { .ec-field, .ec-source, .ec-art { grid-template-columns: minmax(0, 1fr); } }
         </style>
 
         <div class="ec-wrap">
+            <div class="ec-tabs">
+                <button type="button" class="active" data-tab="managed">Managed collections</button>
+                <button type="button" data-tab="all">All collections</button>
+            </div>
+            <div class="ec-msg"></div>
+
+            <div class="ec-panel" data-panel="managed">
             <div class="ec-section">
                 <h2>Settings</h2>
                 <div class="inputContainer">
@@ -63,8 +84,18 @@
                     <button is="emby-button" type="button" class="raised button-submit btnSave"><span>Save</span></button>
                     <button is="emby-button" type="button" class="raised btnSyncAll"><span>Save and sync all</span></button>
                 </div>
-                <div class="ec-msg"></div>
             </div>
+            </div>
+
+            <div class="ec-panel" data-panel="all" hidden>
+                <div class="ec-editor"></div>
+                <div class="ec-section">
+                    <h2>All collections</h2>
+                    <p class="ec-hint">Every collection on this server. Pick one to rename it, change or remove its poster, remove titles, delete it, or let this plugin manage it.</p>
+                    <div class="ec-grid"></div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>

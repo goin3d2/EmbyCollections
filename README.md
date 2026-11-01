@@ -32,11 +32,24 @@ In **Auto** mode the plugin tries each option in order and uses the first one th
 
 A poster is only saved again when it changes.
 
+## Managing existing collections
+
+The **All collections** tab lists every collection on the server, whether this plugin made it or not. Pick one to:
+
+- Change its name, sort name or overview.
+- Set a new poster (Kometa image, URL, uploaded file, generated or TMDB collection) or remove the poster.
+- Remove titles from it.
+- Delete it. The titles themselves aren't touched.
+- **Manage with this plugin.** The collection is adopted as add-only with no sources, so nothing in it changes until you add sources on the Managed tab.
+
+For a managed collection, a poster set by hand switches its artwork to "Leave as is", so the next sync doesn't replace it. Name edits are kept in sync with the plugin's settings too.
+
 ## Safety
 
 - The plugin only manages collections it created. Each one is tagged `embycollections:<id>`, and other collections are never touched.
 - If any source fails during a sync, nothing is removed from that collection. This stops a failed list fetch from emptying a collection.
 - **Stop managing** removes the definition from the plugin and leaves the Emby collection in place.
+- **Add only** collections never lose titles, and a collection with no sources is never emptied.
 
 ## Install
 
