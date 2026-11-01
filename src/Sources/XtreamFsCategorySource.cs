@@ -105,6 +105,9 @@ namespace EmbyCollections.Sources
                 }
             }
 
+            var name = cat.TryGetProperty("name", out var n) ? n.GetString() : parts[1];
+            result.Notes.Add($"xtreamfs {(isMovie ? "movie" : "series")} category '{name}': {result.Refs.Count} titles " +
+                             $"({result.Refs.Count(r => r.Tmdb != null)} with a TMDB id) from {this.IndexPath}");
             return Task.FromResult(result);
         }
     }

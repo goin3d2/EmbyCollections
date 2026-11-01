@@ -58,6 +58,10 @@ Emby 4.10+ can show a single collection as a row on a user's home screen. Open a
 
 Rows are saved through Emby's own home screen settings, so each user's existing sections are kept, and the user can still edit or remove the row in Settings → Home Screen. The row follows the collection, so titles added by a sync show up automatically.
 
+## Activity log
+
+The Managed tab shows what each sync does, live: what each source returned, how many titles matched (and how), which titles aren't in your library, what was added or removed, and where the poster came from. **Save and sync** opens the collection's own log, and **Show activity** opens it any time. An **Activity** box below the collections shows every sync since Emby started. Every line is also written to the Emby server log.
+
 ## Safety
 
 - Sync only touches collections the plugin created or that you adopted. Each one is tagged `embycollections:<id>`. Other collections change only when you edit them on the All collections tab.

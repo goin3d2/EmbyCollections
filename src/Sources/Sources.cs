@@ -40,6 +40,9 @@ namespace EmbyCollections.Sources
         public List<long> ItemIds { get; } = new List<long>();
 
         public List<string> Warnings { get; } = new List<string>();
+
+        /// <summary>What the source did, for the activity log.</summary>
+        public List<string> Notes { get; } = new List<string>();
     }
 
     public interface ICollectionSource

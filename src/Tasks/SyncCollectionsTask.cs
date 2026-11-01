@@ -69,6 +69,9 @@ namespace EmbyCollections.Tasks
                     .Where(c => onlyId == null ? c.Enabled : c.Id == onlyId)
                     .Select(c => c.Id)
                     .ToList();
+                ActivityLog.Add("Info", null, null, onlyId == null
+                    ? $"Sync of {todo.Count} enabled collection{(todo.Count == 1 ? string.Empty : "s")} started"
+                    : "Sync started", null);
                 for (var i = 0; i < todo.Count; i++)
                 {
                     ct.ThrowIfCancellationRequested();
@@ -90,6 +93,7 @@ namespace EmbyCollections.Tasks
                     catch (Exception ex)
                     {
                         this.logger.ErrorException("{0}: sync failed", ex, def.Name);
+                        ActivityLog.Add("Error", def.Id, def.Name, "Sync failed: " + ex.Message);
                         status = new CollectionStatus { Time = DateTime.UtcNow, Error = ex.Message };
                     }
 

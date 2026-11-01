@@ -58,11 +58,12 @@ namespace EmbyCollections.Artwork
             }
         }
 
-        public async Task<ArtworkImage> ResolveAsync(ArtworkContext context, List<string> warnings, CancellationToken ct)
+        public async Task<ArtworkImage> ResolveAsync(ArtworkContext context, List<string> warnings, CancellationToken ct, Action<string> trace = null)
         {
             var mode = context.Collection.Artwork.Mode;
             if (mode == ArtworkMode.None)
             {
+                trace?.Invoke("Artwork set to 'Leave as is': poster not touched");
                 return null;
             }
 
@@ -78,8 +79,11 @@ namespace EmbyCollections.Artwork
                     var image = await provider.GetAsync(context, ct).ConfigureAwait(false);
                     if (image?.Data != null && image.Data.Length > 0)
                     {
+                        trace?.Invoke($"Artwork: {m} → {image.Source} ({image.Data.Length / 1024} KB)");
                         return image;
                     }
+
+                    trace?.Invoke($"Artwork: {m} has nothing for this collection" + (mode == ArtworkMode.Auto ? ", trying the next option" : string.Empty));
                 }
                 catch (OperationCanceledException)
                 {
@@ -88,6 +92,7 @@ namespace EmbyCollections.Artwork
                 catch (Exception ex)
                 {
                     warnings.Add($"Artwork ({m}): {ex.Message}");
+                    trace?.Invoke($"Artwork: {m} failed: {ex.Message}");
                 }
             }
 

@@ -30,6 +30,7 @@ namespace EmbyCollections.Sources
                 },
                 cancellationToken);
             result.ItemIds.AddRange(ids);
+            result.Notes.Add($"Library tag '{source.Value.Trim()}': {ids.Length} movies/series");
             return Task.FromResult(result);
         }
     }

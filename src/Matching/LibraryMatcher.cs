@@ -16,6 +16,13 @@ namespace EmbyCollections.Matching
         public int Requested { get; set; }
 
         public int Matched { get; set; }
+
+        public int ByPath { get; set; }
+
+        public int ById { get; set; }
+
+        /// <summary>Source titles not found in the library.</summary>
+        public List<MediaRef> Unmatched { get; } = new List<MediaRef>();
     }
 
     /// <summary>
@@ -37,6 +44,7 @@ namespace EmbyCollections.Matching
         {
             var result = new MatchResult { Requested = refs.Count };
             var found = new long[refs.Count];
+            var byPathHit = new bool[refs.Count];
 
             // 1. Paths (xtreamfs): exact, case-sensitive like the file system.
             var byPath = new Dictionary<string, List<int>>(StringComparer.Ordinal);
@@ -59,6 +67,10 @@ namespace EmbyCollections.Matching
                     if (item.Path != null && byPath.TryGetValue(item.Path, out var idx))
                     {
                         Mark(found, idx, item);
+                        foreach (var i in idx)
+                        {
+                            byPathHit[i] = found[i] != 0;
+                        }
                     }
                 }
             }
@@ -125,7 +137,17 @@ namespace EmbyCollections.Matching
             {
                 if (found[i] == 0)
                 {
+                    result.Unmatched.Add(refs[i]);
                     continue;
+                }
+
+                if (byPathHit[i])
+                {
+                    result.ByPath++;
+                }
+                else
+                {
+                    result.ById++;
                 }
 
                 result.Matched++;

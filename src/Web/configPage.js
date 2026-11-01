@@ -98,6 +98,10 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         this.config = null;
         this.categories = [];
         this.timer = null;
+        this.actLast = 0;
+        this.allLog = [];
+        this.cardLog = {};
+        this.watched = {};
 
         var list = view.querySelector('.ec-collections');
 
@@ -206,15 +210,21 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
             loading.hide();
         });
         this.timer = setInterval(function () { self.refreshStatus(); }, 5000);
+        this.actActive = true;
+        this.pollActivity();
     };
 
     View.prototype.onPause = function () {
         BaseView.prototype.onPause.apply(this, arguments);
         clearInterval(this.timer);
+        this.actActive = false;
+        clearTimeout(this.actTimer);
     };
 
     View.prototype.destroy = function () {
         clearInterval(this.timer);
+        this.actActive = false;
+        clearTimeout(this.actTimer);
         BaseView.prototype.destroy.apply(this, arguments);
     };
 
@@ -281,11 +291,23 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 this.render();
             }
         } else if (act === 'sync') {
+            var syncId = col.Id;
             this.save().then(function (ok) {
                 if (ok) {
-                    self.sync(col.Id);
+                    self.watched[syncId] = true;
+                    self.cardLog[syncId] = [];
+                    self.render();
+                    self.sync(syncId);
                 }
             });
+        } else if (act === 'log') {
+            if (this.watched[col.Id]) {
+                delete this.watched[col.Id];
+            } else {
+                this.watched[col.Id] = true;
+                this.cardLog[col.Id] = this.allLog.filter(function (e) { return e.CollectionId === col.Id; }).slice(-80);
+            }
+            this.render();
         } else if (act === 'kometa') {
             var box = this.view.querySelector('.ec-kometa[data-c="' + ci + '"]');
             box.innerHTML = '<span class="ec-hint">Searching…</span>';
@@ -381,6 +403,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 '<div class="ec-sub">Artwork</div>' +
                 '<div class="ec-art"><div>' + art + '</div><div class="ec-thumb" data-c="' + ci + '"></div></div>' +
                 '<div class="ec-status" data-c="' + ci + '">' + self.statusText(c) + '</div>' +
+                '<div class="ec-logbar"><button is="emby-button" type="button" class="raised ec-small" data-act="log" data-c="' + ci + '"><span>' + (self.watched[c.Id] ? 'Hide activity' : 'Show activity') + '</span></button></div>' +
+                (self.watched[c.Id] ? '<div class="ec-log ec-cardlog" data-id="' + esc(c.Id) + '">' + (self.cardLog[c.Id] || []).map(function (e) { return logLine(e, false); }).join('') + '</div>' : '') +
                 '<div class="ec-actions">' +
                 '<button is="emby-button" type="button" class="raised" data-act="sync" data-c="' + ci + '"><span>Save and sync</span></button>' +
                 (c.BoxSetId ? '<button is="emby-button" type="button" class="raised" data-act="home" data-c="' + ci + '"><span>Home screen…</span></button>' : '') +
@@ -488,7 +512,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         var self = this;
         postJson('Sync?Id=' + encodeURIComponent(id || '')).then(function (r) {
             self.syncing = !!r.Started;
-            self.message(r.Started ? 'Syncing…' : r.Message, !r.Started);
+            self.message(r.Started ? 'Syncing… (see the activity log)' : r.Message, !r.Started);
+            self.pollActivity();
         }).catch(function (err) {
             self.message('Could not start sync: ' + err.message, true);
         });
@@ -878,6 +903,61 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 return api('POST', 'Users/' + uid + '/HomeSections/Delete', { Ids: [row.Id] });
             });
         })).then(function () { return removed; });
+    };
+
+    // ---- Activity log ---------------------------------------------------------
+
+    function logLine(e, withName) {
+        var t = new Date(e.Time);
+        var hh = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2);
+        return '<div class="' + esc(e.Level) + '"><span class="t">' + hh + '</span>' +
+            (withName && e.Collection ? '<span class="c">' + esc(e.Collection) + ':</span>' : '') + esc(e.Message) + '</div>';
+    }
+
+    function appendLines(box, entries, withName) {
+        if (!box || !entries.length) {
+            return;
+        }
+        var nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+        var hint = box.querySelector('.ec-hint');
+        if (hint) {
+            hint.remove();
+        }
+        box.insertAdjacentHTML('beforeend', entries.map(function (e) { return logLine(e, withName); }).join(''));
+        while (box.childElementCount > 400) {
+            box.removeChild(box.firstElementChild);
+        }
+        if (nearBottom) {
+            box.scrollTop = box.scrollHeight;
+        }
+    }
+
+    /// Polls new activity: fast while a sync runs, slowly otherwise.
+    View.prototype.pollActivity = function () {
+        var self = this;
+        clearTimeout(this.actTimer);
+        if (!this.actActive) {
+            return;
+        }
+        getJson('Activity?After=' + this.actLast).then(function (r) {
+            var entries = r.Entries || [];
+            if (entries.length) {
+                self.actLast = entries[entries.length - 1].Seq;
+                self.allLog = self.allLog.concat(entries).slice(-400);
+                appendLines(self.view.querySelector('.ec-alllog'), entries, true);
+                Object.keys(self.watched).forEach(function (id) {
+                    var mine = entries.filter(function (e) { return e.CollectionId === id || e.CollectionId == null; });
+                    if (!mine.length) {
+                        return;
+                    }
+                    self.cardLog[id] = (self.cardLog[id] || []).concat(mine).slice(-200);
+                    appendLines(self.view.querySelector('.ec-cardlog[data-id="' + id + '"]'), mine, false);
+                });
+            }
+            self.actRunning = r.Running;
+        }).catch(function () { }).then(function () {
+            self.actTimer = setTimeout(function () { self.pollActivity(); }, self.actRunning || self.syncing ? 1000 : 5000);
+        });
     };
 
     View.prototype.message = function (text, isError) {

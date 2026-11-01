@@ -38,6 +38,13 @@
             .ec-keyresult { font-size: .92em; }
             .ec-keyresult.ok { color: #3c9a3a; }
             .ec-keyresult.bad { color: #d9534f; }
+            .ec-log { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82em; line-height: 1.5; max-height: 20em; overflow: auto; background: rgba(128,128,128,.1); border: 1px solid rgba(128,128,128,.35); border-radius: 6px; padding: .5em .8em; margin: .6em 0 0; white-space: pre-wrap; word-break: break-word; }
+            .ec-log .t { opacity: .55; margin-right: .6em; }
+            .ec-log .c { font-weight: 600; margin-right: .4em; }
+            .ec-log .Warn { color: #c98a00; }
+            .ec-log .Error { color: #d9534f; }
+            .ec-log .Done { color: #3c9a3a; font-weight: 600; }
+            .ec-logbar { margin: .8em 0 0; }
             .ec-tabs { display: flex; gap: .5em; margin: 0 0 1.6em; border-bottom: 1px solid rgba(128,128,128,.35); }
             .ec-tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: inherit; font: inherit; font-size: 1.05em; padding: .6em 1em; cursor: pointer; opacity: .75; }
             .ec-tabs button.active { border-bottom-color: #52b54b; opacity: 1; font-weight: 600; }
@@ -91,6 +98,12 @@
                     <button is="emby-button" type="button" class="raised button-submit btnSave"><span>Save</span></button>
                     <button is="emby-button" type="button" class="raised btnSyncAll"><span>Save and sync all</span></button>
                 </div>
+            </div>
+
+            <div class="ec-section">
+                <h2>Activity</h2>
+                <p class="ec-hint">What each sync did, live, since Emby last started. Every line is also in the Emby server log.</p>
+                <div class="ec-log ec-alllog"><span class="ec-hint">No sync has run since Emby started.</span></div>
             </div>
             </div>
 

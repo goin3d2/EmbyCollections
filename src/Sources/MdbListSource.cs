@@ -114,6 +114,7 @@ namespace EmbyCollections.Sources
             var result = new SourceResult();
             var path = ListPath(source.Value);
             var rank = 0;
+            var pages = 0;
             for (var page = 0; page < MaxPages; page++)
             {
                 var url = $"{Api}{path}/items/?apikey={Uri.EscapeDataString(key)}&limit={PageSize}&offset={page * PageSize}&unified=true";
@@ -135,6 +136,8 @@ namespace EmbyCollections.Sources
 
                 response.EnsureSuccessStatusCode();
                 var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                ThrowIfError(text);
+                pages++;
                 var items = ParseItems(text).ToList();
                 foreach (var item in items)
                 {
@@ -150,7 +153,32 @@ namespace EmbyCollections.Sources
                 }
             }
 
+            var movies = result.Refs.Count(r => r.Kind == MediaKind.Movie);
+            var shows = result.Refs.Count(r => r.Kind == MediaKind.Show);
+            result.Notes.Add($"MDBList {path.Replace("lists/", string.Empty)}: {result.Refs.Count} titles ({movies} movies, {shows} shows) in {pages} page{(pages == 1 ? string.Empty : "s")}");
+            if (result.Refs.Count == 0)
+            {
+                result.Warnings.Add($"MDBList list {source.Value} returned no titles");
+            }
+
             return result;
+        }
+
+        /// <summary>MDBList sometimes answers 200 with {"error": "..."} (bad key, private list).</summary>
+        private static void ThrowIfError(string json)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("error", out var err))
+                {
+                    throw new InvalidOperationException("MDBList: " + err);
+                }
+            }
+            catch (JsonException)
+            {
+                throw new InvalidOperationException("MDBList returned something that isn't JSON");
+            }
         }
 
         /// <summary>Handles both shapes MDBList returns: a plain array, or { movies: [...], shows: [...] } / { items: [...] }.</summary>

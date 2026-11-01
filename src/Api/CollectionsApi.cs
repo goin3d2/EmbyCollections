@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EmbyCollections.Model;
 using EmbyCollections.Sources;
+using EmbyCollections.Sync;
 using EmbyCollections.Tasks;
 using MediaBrowser.Controller.Collections;
 using MediaBrowser.Controller.Library;
@@ -62,6 +63,15 @@ namespace EmbyCollections.Api
         public string Service { get; set; }
 
         public string Key { get; set; }
+    }
+
+    [Route("/EmbyCollections/Activity", "GET", Summary = "Recent sync activity, newest last")]
+    [Authenticated(Roles = "Admin")]
+    public class GetActivity : IReturnVoid
+    {
+        public long After { get; set; }
+
+        public string CollectionId { get; set; }
     }
 
     [Route("/EmbyCollections/KometaSearch", "GET", Summary = "Kometa default posters matching a name")]
@@ -180,6 +190,16 @@ namespace EmbyCollections.Api
             }
 
             return this.Json(new { result.Ok, result.Message });
+        }
+
+        public object Get(GetActivity request)
+        {
+            return this.Json(new
+            {
+                Running = SyncRunner.IsRunning,
+                Last = ActivityLog.LastSeq,
+                Entries = ActivityLog.Since(request.After, request.CollectionId),
+            });
         }
 
         public async Task<object> Get(SearchKometa request)

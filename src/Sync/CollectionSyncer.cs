@@ -56,26 +56,44 @@ namespace EmbyCollections.Sync
         public async Task<CollectionStatus> SyncAsync(CollectionDefinition def, Settings settings, CancellationToken ct)
         {
             var status = new CollectionStatus { Time = DateTime.UtcNow };
+            var trace = new SyncTrace(def.Id, def.Name, this.logger);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             var refs = new List<MediaRef>();
             var direct = new List<long>();
             var failedSources = 0;
 
+            trace.Info(def.Sources.Count == 0
+                ? "Sync started (no sources: titles are left as they are)"
+                : $"Sync started: {def.Sources.Count} source{(def.Sources.Count == 1 ? string.Empty : "s")}" + (def.OnlyAdd ? ", add only" : string.Empty));
             foreach (var src in def.Sources)
             {
                 ct.ThrowIfCancellationRequested();
+                var label = string.IsNullOrEmpty(src.Label) ? src.Value : src.Label;
                 if (!this.sources.TryGetValue(src.Type, out var source))
                 {
                     status.Warnings.Add($"Unknown source type {src.Type}");
+                    trace.Warn($"Unknown source type {src.Type}");
                     failedSources++;
                     continue;
                 }
 
                 try
                 {
+                    trace.Info($"Reading {src.Type} '{label}'…");
+                    var t0 = clock.Elapsed;
                     var r = await source.ResolveAsync(src, ct).ConfigureAwait(false);
                     refs.AddRange(r.Refs);
                     direct.AddRange(r.ItemIds);
                     status.Warnings.AddRange(r.Warnings);
+                    foreach (var note in r.Notes)
+                    {
+                        trace.Info($"{note} ({(clock.Elapsed - t0).TotalSeconds:0.0}s)");
+                    }
+
+                    foreach (var w in r.Warnings)
+                    {
+                        trace.Warn(w);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -84,8 +102,8 @@ namespace EmbyCollections.Sync
                 catch (Exception ex)
                 {
                     failedSources++;
-                    status.Warnings.Add($"{src.Type} '{(string.IsNullOrEmpty(src.Label) ? src.Value : src.Label)}': {ex.Message}");
-                    this.logger.Warn("{0}: source {1} {2} failed: {3}", def.Name, src.Type, src.Value, ex.Message);
+                    status.Warnings.Add($"{src.Type} '{label}': {ex.Message}");
+                    trace.Error($"{src.Type} '{label}' failed: {ex.Message}");
                 }
             }
 
@@ -95,6 +113,20 @@ namespace EmbyCollections.Sync
             var seen = new HashSet<long>(desired);
             desired.AddRange(direct.Where(seen.Add));
             status.Matched = match.Matched + direct.Count;
+            if (refs.Count > 0)
+            {
+                trace.Info($"Matched {match.Matched} of {refs.Count} source titles in the library ({match.ByPath} by file path, {match.ById} by IMDb/TMDB/TVDB id); {match.Unmatched.Count} not in the library");
+                if (match.Unmatched.Count > 0)
+                {
+                    var sample = match.Unmatched.Take(8).Select(Describe);
+                    trace.Info("Not in library: " + string.Join("; ", sample) + (match.Unmatched.Count > 8 ? $"; and {match.Unmatched.Count - 8} more" : string.Empty));
+                }
+            }
+
+            if (direct.Count > 0)
+            {
+                trace.Info($"{direct.Count} titles came straight from the library (tags)");
+            }
 
             var box = this.FindBoxSet(def);
             if (box == null)
@@ -102,6 +134,8 @@ namespace EmbyCollections.Sync
                 if (desired.Count == 0)
                 {
                     status.Warnings.Add("Nothing in the library matched yet, so the collection wasn't created");
+                    trace.Warn("Nothing in the library matched, so the collection wasn't created");
+                    trace.Done($"Finished in {clock.Elapsed.TotalSeconds:0.0}s");
                     return status;
                 }
 
@@ -112,7 +146,7 @@ namespace EmbyCollections.Sync
                     ItemIdList = desired.ToArray(),
                 }).ConfigureAwait(false);
                 status.Added = desired.Count;
-                this.logger.Info("{0}: created collection with {1} items", def.Name, desired.Count);
+                trace.Info($"Created the Emby collection with {desired.Count} titles: {this.Names(desired)}");
             }
             else
             {
@@ -130,7 +164,14 @@ namespace EmbyCollections.Sync
                 if (failedSources > 0 && current.Any(id => !desiredSet.Contains(id)))
                 {
                     status.Warnings.Add("A source failed, so no items were removed this run");
+                    trace.Warn("A source failed, so nothing is removed this run");
                 }
+                else if ((def.OnlyAdd || !settings.RemoveMissing) && current.Any(id => !desiredSet.Contains(id)))
+                {
+                    trace.Info($"{current.Count(id => !desiredSet.Contains(id))} titles are no longer in any source but kept ({(def.OnlyAdd ? "add only" : "removing is turned off")})");
+                }
+
+                trace.Info($"Collection has {current.Length} titles; adding {add.Length}, removing {remove.Length}");
 
                 if (add.Length > 0)
                 {
@@ -144,15 +185,27 @@ namespace EmbyCollections.Sync
 
                 status.Added = add.Length;
                 status.Removed = remove.Length;
-                if (add.Length + remove.Length > 0)
+                if (add.Length > 0)
                 {
-                    this.logger.Info("{0}: +{1} -{2} (now {3})", def.Name, add.Length, remove.Length, currentSet.Count + add.Length - remove.Length);
+                    trace.Info($"Added: {this.Names(add)}");
+                }
+
+                if (remove.Length > 0)
+                {
+                    trace.Info($"Removed: {this.Names(remove)}");
                 }
             }
 
             def.BoxSetId = box.InternalId;
-            this.ApplyMetadata(box, def);
-            await this.ApplyArtworkAsync(box, def, settings, desired, status, ct).ConfigureAwait(false);
+            var changes = this.ApplyMetadata(box, def);
+            if (changes.Count > 0)
+            {
+                trace.Info("Updated " + string.Join(", ", changes));
+            }
+
+            await this.ApplyArtworkAsync(box, def, settings, desired, status, trace, ct).ConfigureAwait(false);
+            trace.Done($"Finished in {clock.Elapsed.TotalSeconds:0.0}s: {status.Matched} matched, +{status.Added} −{status.Removed}" +
+                       (status.Warnings.Count > 0 ? $", {status.Warnings.Count} warning{(status.Warnings.Count == 1 ? string.Empty : "s")}" : string.Empty));
             return status;
         }
 
@@ -171,31 +224,61 @@ namespace EmbyCollections.Sync
             }).OfType<BoxSet>().FirstOrDefault();
         }
 
-        private void ApplyMetadata(BoxSet box, CollectionDefinition def)
+        private static string Describe(MediaRef r)
         {
+            var id = r.Imdb ?? (r.Tmdb != null ? "tmdb " + r.Tmdb : r.Tvdb != null ? "tvdb " + r.Tvdb : null);
+            if (!string.IsNullOrEmpty(r.Title))
+            {
+                return id != null ? $"{r.Title} ({id})" : r.Title;
+            }
+
+            if (!string.IsNullOrEmpty(r.Path))
+            {
+                var name = Path.GetFileNameWithoutExtension(r.Path.TrimEnd('/', '\\'));
+                return id != null ? $"{name} ({id})" : name;
+            }
+
+            return id ?? "?";
+        }
+
+        /// <summary>Up to 10 item names for the log.</summary>
+        private string Names(IReadOnlyCollection<long> ids)
+        {
+            var names = ids.Take(10).Select(id => this.libraryManager.GetItemById(id)).Where(i => i != null)
+                .Select(i => i.ProductionYear.HasValue ? $"{i.Name} ({i.ProductionYear})" : i.Name);
+            return string.Join("; ", names) + (ids.Count > 10 ? $"; and {ids.Count - 10} more" : string.Empty);
+        }
+
+        private List<string> ApplyMetadata(BoxSet box, CollectionDefinition def)
+        {
+            var changes = new List<string>();
             var changed = false;
             var tags = box.Tags ?? Array.Empty<string>();
             if (!tags.Contains(def.Tag, StringComparer.OrdinalIgnoreCase))
             {
                 box.SetTags(tags.Append(def.Tag));
+                changes.Add("plugin tag");
                 changed = true;
             }
 
             if (!string.Equals(box.Name, def.Name, StringComparison.Ordinal))
             {
                 box.Name = def.Name;
+                changes.Add("name");
                 changed = true;
             }
 
             if (!string.IsNullOrWhiteSpace(def.SortName) && box.SortName != def.SortName)
             {
                 box.SortName = def.SortName;
+                changes.Add("sort name");
                 changed = true;
             }
 
             if (!string.IsNullOrWhiteSpace(def.Overview) && box.Overview != def.Overview)
             {
                 box.Overview = def.Overview;
+                changes.Add("overview");
                 changed = true;
             }
 
@@ -203,6 +286,7 @@ namespace EmbyCollections.Sync
             if (order.HasValue && box.DisplayOrder != order.Value)
             {
                 box.DisplayOrder = order.Value;
+                changes.Add("display order (" + (def.Sort == CollectionSort.Name ? "name" : "release date") + ")");
                 changed = true;
             }
 
@@ -210,6 +294,8 @@ namespace EmbyCollections.Sync
             {
                 box.UpdateToRepository(ItemUpdateType.MetadataEdit);
             }
+
+            return changes;
         }
 
         public static CollectionDisplayOrder? DisplayOrderFor(CollectionSort sort)
@@ -222,7 +308,7 @@ namespace EmbyCollections.Sync
             };
         }
 
-        private async Task ApplyArtworkAsync(BoxSet box, CollectionDefinition def, Settings settings, List<long> members, CollectionStatus status, CancellationToken ct)
+        private async Task ApplyArtworkAsync(BoxSet box, CollectionDefinition def, Settings settings, List<long> members, CollectionStatus status, SyncTrace trace, CancellationToken ct)
         {
             var context = new ArtworkContext
             {
@@ -230,21 +316,32 @@ namespace EmbyCollections.Sync
                 Settings = settings,
                 MemberPosters = def.Artwork.Style == GeneratedStyle.Mosaic ? this.MemberPosters(members, 9) : Array.Empty<string>(),
             };
-            var image = await this.artwork.ResolveAsync(context, status.Warnings, ct).ConfigureAwait(false);
+            if (def.Artwork.Mode != ArtworkMode.None)
+            {
+                trace.Info($"Artwork mode {def.Artwork.Mode}: looking for a poster…");
+            }
+
+            var image = await this.artwork.ResolveAsync(context, status.Warnings, ct, trace.Info).ConfigureAwait(false);
             if (image == null)
             {
+                if (def.Artwork.Mode != ArtworkMode.None)
+                {
+                    trace.Warn("No poster found; the collection keeps its current one");
+                }
+
                 return;
             }
 
             status.ArtworkSource = image.Source;
             if (image.Key == def.Artwork.AppliedKey && box.HasImage(ImageType.Primary, 0))
             {
+                trace.Info("Poster unchanged since the last sync, not saved again");
                 return;
             }
 
             await PosterWriter.SaveAsync(this.providerManager, this.libraryManager, this.fileSystem, box, image, ct).ConfigureAwait(false);
             def.Artwork.AppliedKey = image.Key;
-            this.logger.Info("{0}: poster set from {1}", def.Name, image.Source);
+            trace.Info($"Poster saved from {image.Source}");
         }
 
         public IReadOnlyList<string> MemberPosters(IEnumerable<long> members, int count)
