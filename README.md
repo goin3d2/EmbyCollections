@@ -76,6 +76,10 @@ The Managed tab shows what each sync does, live: what each source returned, how 
 3. Open **Dashboard → Emby Collections**. Add an MDBList API key (and a TMDB key if you want logos or TMDB collection posters), then add collections.
 4. The **Sync collections** scheduled task runs every 12 hours. Each collection also has a **Save and sync** button.
 
+## Releases
+
+Releases are published by GitHub Actions (`.github/workflows/release.yml`). When a push to `main` changes `<Version>` in `EmbyCollections.csproj`, the workflow builds the plugin against the Emby release named in the workflow and publishes `v<version>` with `EmbyCollections.dll` attached. It can also be run by hand from **Actions → Release → Run workflow**. A version that already has a release is skipped.
+
 ## Build
 
 ```sh
