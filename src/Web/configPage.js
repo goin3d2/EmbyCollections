@@ -1,4 +1,4 @@
-define(['baseView', 'loading', 'emby-button', 'emby-scroller'], function (BaseView, loading) {
+define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'emby-scroller'], function (BaseView, loading) {
     'use strict';
 
     var SOURCE_TYPES = [
@@ -294,7 +294,7 @@ define(['baseView', 'loading', 'emby-button', 'emby-scroller'], function (BaseVi
 
             return '<div class="ec-card">' +
                 '<div class="ec-cardhead"><input class="ec-input" type="text" data-c="' + ci + '" data-f="Name" value="' + esc(c.Name) + '" />' +
-                '<label><input type="checkbox" data-c="' + ci + '" data-f="Enabled"' + (c.Enabled ? ' checked' : '') + ' />Enabled</label></div>' +
+                '<label><input type="checkbox" class="ec-check" data-c="' + ci + '" data-f="Enabled"' + (c.Enabled ? ' checked' : '') + ' />Enabled</label></div>' +
                 '<div class="ec-field"><span>Sort name</span><input class="ec-input" type="text" data-c="' + ci + '" data-f="SortName" value="' + esc(c.SortName) + '" placeholder="Optional" /></div>' +
                 '<div class="ec-field"><span>Overview</span><input class="ec-input" type="text" data-c="' + ci + '" data-f="Overview" value="' + esc(c.Overview) + '" placeholder="Optional" /></div>' +
                 '<div class="ec-sub">Sources <span class="ec-hint">(combined: anything in any source)</span></div>' + sources +

@@ -84,7 +84,7 @@ namespace EmbyCollections.Sync
                 catch (Exception ex)
                 {
                     failedSources++;
-                    status.Warnings.Add($"{src.Type} '{src.Label ?? src.Value}': {ex.Message}");
+                    status.Warnings.Add($"{src.Type} '{(string.IsNullOrEmpty(src.Label) ? src.Value : src.Label)}': {ex.Message}");
                     this.logger.Warn("{0}: source {1} {2} failed: {3}", def.Name, src.Type, src.Value, ex.Message);
                 }
             }
@@ -237,6 +237,9 @@ namespace EmbyCollections.Sync
                 new DirectoryService(this.fileSystem),
                 true,
                 ct).ConfigureAwait(false);
+
+            // SaveImage writes the file and sets the image on the item; the item still has to be saved.
+            box.UpdateToRepository(ItemUpdateType.ImageUpdate);
             def.Artwork.AppliedKey = image.Key;
             this.logger.Info("{0}: poster set from {1}", def.Name, image.Source);
         }

@@ -8,9 +8,13 @@
             .ec-hint { opacity: .7; font-size: .9em; margin: .3em 0 0; line-height: 1.4; }
             .ec-field { display: grid; grid-template-columns: 12em minmax(0, 1fr); gap: .5em 1em; align-items: center; margin: .6em 0; }
             .ec-field > span { opacity: .85; }
-            .ec-input, .ec-select { background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.18); border-radius: 4px; padding: .5em .6em; font: inherit; width: 100%; box-sizing: border-box; }
-            .ec-select option { color: #000; }
-            .ec-card { border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 1em 1.2em; margin: 0 0 1.2em; background: rgba(255,255,255,.03); }
+            /* Grey-based so fields show in both the light and dark dashboard themes. */
+            .ec-wrap .ec-input, .ec-wrap .ec-select { display: block; -webkit-appearance: auto; appearance: auto; background: rgba(128,128,128,.14); color: inherit; border: 1px solid rgba(128,128,128,.55); border-radius: 4px; padding: .5em .6em; font: inherit; width: 100%; box-sizing: border-box; min-height: 2.4em; }
+            .ec-wrap .ec-input:focus, .ec-wrap .ec-select:focus { outline: 2px solid #52b54b; outline-offset: 0; }
+            .ec-wrap .ec-select option { color: #000; background: #fff; }
+            .ec-wrap input[type=checkbox].ec-check { display: inline-block; -webkit-appearance: auto; appearance: auto; width: 1.1em; height: 1.1em; margin: 0; }
+            .ec-wrap input[type=color] { display: inline-block; width: 3em; height: 2.2em; padding: 0; border: 1px solid rgba(128,128,128,.55); border-radius: 4px; background: none; }
+            .ec-card { border: 1px solid rgba(128,128,128,.4); border-radius: 8px; padding: 1em 1.2em; margin: 0 0 1.2em; background: rgba(128,128,128,.06); }
             .ec-cardhead { display: flex; gap: .8em; align-items: center; }
             .ec-cardhead .ec-input { font-size: 1.15em; font-weight: 600; }
             .ec-cardhead label { white-space: nowrap; display: flex; align-items: center; gap: .3em; }
@@ -35,10 +39,19 @@
         <div class="ec-wrap">
             <div class="ec-section">
                 <h2>Settings</h2>
-                <div class="ec-field"><span>MDBList API key</span><input class="ec-input" type="password" data-key="MdbListApiKey" autocomplete="off" /></div>
-                <div class="ec-field"><span>TMDB API key</span><input class="ec-input" type="password" data-key="TmdbApiKey" autocomplete="off" /></div>
-                <div class="ec-field"><span>xtreamfs data folder</span><input class="ec-input" type="text" data-key="XtreamFsDataPath" placeholder="Default: Emby data folder/xtreamfs" /></div>
-                <label style="display:flex;gap:.4em;align-items:center;margin:.6em 0"><input type="checkbox" data-key="RemoveMissing" /><span>Remove items that drop off every source</span></label>
+                <div class="inputContainer">
+                    <input is="emby-input" type="password" autocomplete="off" data-key="MdbListApiKey" label="MDBList API key" />
+                </div>
+                <div class="inputContainer">
+                    <input is="emby-input" type="password" autocomplete="off" data-key="TmdbApiKey" label="TMDB API key" />
+                </div>
+                <div class="inputContainer">
+                    <input is="emby-input" type="text" data-key="XtreamFsDataPath" label="xtreamfs data folder (where categories.json is, e.g. /vod)" />
+                    <div class="fieldDescription">Empty: Emby's data folder/xtreamfs (the xtreamfs Emby plugin on this server).</div>
+                </div>
+                <div class="checkboxContainer">
+                    <label><input is="emby-checkbox" type="checkbox" data-key="RemoveMissing" /><span>Remove items that drop off every source</span></label>
+                </div>
                 <p class="ec-hint">IMDb lists: add the list to MDBList (Lists → Add external list), then use that MDBList URL as an MDBList source. TMDB is only needed for TMDB collection posters and network/company logos on generated posters. <span class="ec-xtreaminfo"></span></p>
             </div>
 
