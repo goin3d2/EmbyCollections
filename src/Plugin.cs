@@ -6,12 +6,13 @@ using System.Text.Json.Serialization;
 using EmbyCollections.Model;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
+using MediaBrowser.Model.Drawing;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Plugins;
 
 namespace EmbyCollections
 {
-    public class Plugin : BasePlugin, IHasWebPages
+    public class Plugin : BasePlugin, IHasWebPages, IHasThumbImage
     {
         public const string PluginName = "Emby Collections";
 
@@ -124,6 +125,9 @@ namespace EmbyCollections
                     DisplayName = PluginName,
                     EmbeddedResourcePath = "EmbyCollections.Web.configPage.html",
                     IsMainConfigPage = true,
+                    EnableInMainMenu = true,
+                    MenuSection = "advanced",
+                    MenuIcon = "collections_bookmark",
                 },
                 new PluginPageInfo
                 {
@@ -131,6 +135,13 @@ namespace EmbyCollections
                     EmbeddedResourcePath = "EmbyCollections.Web.configPage.js",
                 },
             };
+        }
+
+        public ImageFormat ThumbImageFormat => ImageFormat.Png;
+
+        public Stream GetThumbImage()
+        {
+            return this.GetType().Assembly.GetManifestResourceStream("EmbyCollections.ThumbImage.png");
         }
 
         private void Write(Settings value)

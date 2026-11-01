@@ -11,7 +11,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>EmbyCollections</AssemblyName>
     <RootNamespace>EmbyCollections</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="src/Resources/TitleFont.ttf" LogicalName="EmbyCollections.TitleFont.ttf" />
+    <EmbeddedResource Include="src/Resources/ThumbImage.png" LogicalName="EmbyCollections.ThumbImage.png" />
     <EmbeddedResource Include="src/Web/configPage.html" LogicalName="EmbyCollections.Web.configPage.html" />
     <EmbeddedResource Include="src/Web/configPage.js" LogicalName="EmbyCollections.Web.configPage.js" />
   </ItemGroup>
