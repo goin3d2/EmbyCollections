@@ -33,6 +33,11 @@
             .ec-small { padding: .35em .8em !important; font-size: .9em; }
             .ec-msg { margin: 0 0 1em; min-height: 1.4em; font-weight: 600; } .ec-msg:empty { display: none; }
             .ec-msg.err { color: #d9534f; }
+            .ec-keytest { display: flex; align-items: center; gap: .8em; margin: .5em 0 0; }
+            .ec-keytest button { margin: 0; }
+            .ec-keyresult { font-size: .92em; }
+            .ec-keyresult.ok { color: #3c9a3a; }
+            .ec-keyresult.bad { color: #d9534f; }
             .ec-tabs { display: flex; gap: .5em; margin: 0 0 1.6em; border-bottom: 1px solid rgba(128,128,128,.35); }
             .ec-tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: inherit; font: inherit; font-size: 1.05em; padding: .6em 1em; cursor: pointer; opacity: .75; }
             .ec-tabs button.active { border-bottom-color: #52b54b; opacity: 1; font-weight: 600; }
@@ -62,9 +67,11 @@
                 <h2>Settings</h2>
                 <div class="inputContainer">
                     <input is="emby-input" type="password" autocomplete="off" data-key="MdbListApiKey" label="MDBList API key" />
+                    <div class="ec-keytest"><button is="emby-button" type="button" class="raised ec-small" data-test="mdblist"><span>Test</span></button><span class="ec-keyresult" data-for="mdblist"></span></div>
                 </div>
                 <div class="inputContainer">
-                    <input is="emby-input" type="password" autocomplete="off" data-key="TmdbApiKey" label="TMDB API key" />
+                    <input is="emby-input" type="password" autocomplete="off" data-key="TmdbApiKey" label="TMDB API key or read access token" />
+                    <div class="ec-keytest"><button is="emby-button" type="button" class="raised ec-small" data-test="tmdb"><span>Test</span></button><span class="ec-keyresult" data-for="tmdb"></span></div>
                 </div>
                 <div class="inputContainer">
                     <input is="emby-input" type="text" data-key="XtreamFsDataPath" label="xtreamfs data folder (where categories.json is, e.g. /vod)" />

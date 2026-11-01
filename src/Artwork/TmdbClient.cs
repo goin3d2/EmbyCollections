@@ -102,10 +102,47 @@ namespace EmbyCollections.Artwork
                 throw new InvalidOperationException("TMDB API key is not set");
             }
 
-            var sep = path.Contains('?') ? "&" : "?";
-            using var response = await Http.Client.GetAsync($"{Api}{path}{sep}api_key={Uri.EscapeDataString(this.key)}", ct).ConfigureAwait(false);
+            using var response = await this.SendAsync(path, ct).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             return JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+        }
+
+        /// <summary>A v3 API key goes in the query string; a v4 read access token (a long JWT) as a Bearer header.</summary>
+        private Task<HttpResponseMessage> SendAsync(string path, CancellationToken ct)
+        {
+            var isToken = this.key.StartsWith("eyJ", StringComparison.Ordinal) && this.key.Length > 60;
+            var url = Api + path;
+            if (!isToken)
+            {
+                url += (path.Contains('?') ? "&" : "?") + "api_key=" + Uri.EscapeDataString(this.key);
+            }
+
+            var req = new HttpRequestMessage(HttpMethod.Get, url);
+            if (isToken)
+            {
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", this.key);
+            }
+
+            return Http.Client.SendAsync(req, ct);
+        }
+
+        /// <summary>Checks the key against TMDB without changing anything.</summary>
+        public async Task<(bool Ok, string Message)> TestAsync(CancellationToken ct)
+        {
+            if (!this.IsConfigured)
+            {
+                return (false, "Enter a TMDB API key or read access token first.");
+            }
+
+            using var response = await this.SendAsync("configuration", ct).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, "TMDB key works.");
+            }
+
+            return response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                ? (false, "TMDB rejected the key (401). Check you copied the whole API key or read access token.")
+                : (false, $"TMDB answered {(int)response.StatusCode} {response.ReasonPhrase}.");
         }
     }
 

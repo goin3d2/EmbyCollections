@@ -50,6 +50,20 @@ namespace EmbyCollections.Api
     {
     }
 
+    [Route("/EmbyCollections/TestKey", "POST", Summary = "Tests an MDBList or TMDB key (the one typed, not necessarily saved)")]
+    [Authenticated(Roles = "Admin")]
+    public class TestKey : IRequiresRequestStream, IReturnVoid
+    {
+        public Stream RequestStream { get; set; }
+    }
+
+    public class TestKeyRequest
+    {
+        public string Service { get; set; }
+
+        public string Key { get; set; }
+    }
+
     [Route("/EmbyCollections/KometaSearch", "GET", Summary = "Kometa default posters matching a name")]
     [Authenticated(Roles = "Admin")]
     public class SearchKometa : IReturnVoid
@@ -146,6 +160,26 @@ namespace EmbyCollections.Api
                 Found = File.Exists(source.IndexPath),
                 Categories = source.ListCategories(),
             });
+        }
+
+        public async Task<object> Post(TestKey request)
+        {
+            using var reader = new StreamReader(request.RequestStream);
+            var body = JsonSerializer.Deserialize<TestKeyRequest>(await reader.ReadToEndAsync().ConfigureAwait(false), Plugin.Json) ?? new TestKeyRequest();
+            (bool Ok, string Message) result;
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                result = string.Equals(body.Service, "tmdb", StringComparison.OrdinalIgnoreCase)
+                    ? await new Artwork.TmdbClient(body.Key).TestAsync(cts.Token).ConfigureAwait(false)
+                    : await MdbListSource.TestKeyAsync(body.Key, cts.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                result = (false, "Could not reach the service: " + ex.Message);
+            }
+
+            return this.Json(new { result.Ok, result.Message });
         }
 
         public async Task<object> Get(SearchKometa request)

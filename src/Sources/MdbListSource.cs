@@ -56,6 +56,53 @@ namespace EmbyCollections.Sources
             return "lists/" + v;
         }
 
+        /// <summary>Checks a key against MDBList's user endpoint and reports the daily request quota.</summary>
+        public static async Task<(bool Ok, string Message)> TestKeyAsync(string key, CancellationToken ct)
+        {
+            key = (key ?? string.Empty).Trim();
+            if (key.Length == 0)
+            {
+                return (false, "Enter an MDBList API key first.");
+            }
+
+            using var response = await Http.Client.GetAsync($"{Api}user?apikey={Uri.EscapeDataString(key)}", ct).ConfigureAwait(false);
+            var text = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                return (false, "MDBList rejected the key. Copy it again from mdblist.com → Preferences → API.");
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return (false, $"MDBList answered {(int)response.StatusCode} {response.ReasonPhrase}.");
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(text);
+                var r = doc.RootElement;
+                if (r.TryGetProperty("error", out var err))
+                {
+                    return (false, "MDBList: " + err.ToString());
+                }
+
+                var name = Str(r, "username") ?? Str(r, "name");
+                var limit = Str(r, "api_requests");
+                var used = Str(r, "api_requests_count") ?? "0";
+                var msg = "MDBList key works" + (name != null ? $" (user {name})" : string.Empty) + ".";
+                if (limit != null)
+                {
+                    msg += $" {used} of {limit} requests used today.";
+                }
+
+                return (true, msg);
+            }
+            catch (JsonException)
+            {
+                return (true, "MDBList key works.");
+            }
+        }
+
         public async Task<SourceResult> ResolveAsync(SourceDefinition source, CancellationToken cancellationToken)
         {
             var key = this.apiKey();

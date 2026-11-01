@@ -103,6 +103,24 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
 
         list.addEventListener('input', function (e) { self.onField(e.target, false); });
         list.addEventListener('change', function (e) { self.onField(e.target, true); });
+        view.querySelectorAll('button[data-test]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var service = btn.getAttribute('data-test');
+                var input = view.querySelector('[data-key="' + (service === 'tmdb' ? 'TmdbApiKey' : 'MdbListApiKey') + '"]');
+                var out = view.querySelector('.ec-keyresult[data-for="' + service + '"]');
+                out.className = 'ec-keyresult';
+                out.textContent = 'Testing…';
+                btn.disabled = true;
+                postJson('TestKey', { Service: service, Key: input.value }).then(function (r) {
+                    out.classList.add(r.Ok ? 'ok' : 'bad');
+                    out.textContent = (r.Ok ? '✓ ' : '✗ ') + r.Message + (r.Ok ? ' Remember to Save.' : '');
+                }).catch(function (err) {
+                    out.classList.add('bad');
+                    out.textContent = '✗ ' + err.message;
+                }).then(function () { btn.disabled = false; });
+            });
+        });
+
         // Enter in a Kometa search box runs Find.
         view.addEventListener('keydown', function (e) {
             if (e.key !== 'Enter' || !e.target.classList) {
