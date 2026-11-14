@@ -49,10 +49,14 @@
             .ec-tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: inherit; font: inherit; font-size: 1.05em; padding: .6em 1em; cursor: pointer; opacity: .75; }
             .ec-tabs button.active { border-bottom-color: #52b54b; opacity: 1; font-weight: 600; }
             .ec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9em, 1fr)); gap: 1em; }
-            .ec-tile { background: none; border: 2px solid transparent; border-radius: 8px; padding: .3em; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+            .ec-tile { display: block; width: 100%; min-width: 0; box-sizing: border-box; background: none; border: 2px solid transparent; border-radius: 8px; padding: .3em; color: inherit; font: inherit; text-align: left; cursor: pointer; }
             .ec-tile:hover, .ec-tile.sel { border-color: #52b54b; }
             .ec-tile .ec-thumb { width: 100%; }
-            .ec-tilewrap { position: relative; }
+            .ec-tilewrap { position: relative; min-width: 0; }
+            .ec-drop { outline: 3px dashed #52b54b; outline-offset: 2px; }
+            .ec-thumb.ec-droptarget { position: relative; }
+            .ec-thumb.ec-droptarget::after { content: "Drop an image"; position: absolute; left: 0; right: 0; bottom: .4em; text-align: center; font-size: .75em; opacity: 0; transition: opacity .15s; color: #fff; text-shadow: 0 1px 3px #000; }
+            .ec-thumb.ec-droptarget:hover::after, .ec-drop .ec-thumb.ec-droptarget::after, .ec-thumb.ec-droptarget.ec-drop::after { opacity: .9; }
             .ec-tilewrap .ec-pick { position: absolute; top: .6em; left: .6em; z-index: 2; width: 1.4em; height: 1.4em; -webkit-appearance: auto; appearance: auto; margin: 0; cursor: pointer; accent-color: #d9534f; }
             .ec-tilewrap.picked .ec-tile { border-color: #d9534f; }
             .ec-tile b { display: block; margin: .4em 0 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -120,7 +124,7 @@
                         <button is="emby-button" type="button" class="raised ec-small" data-bulk="clear"><span>Clear selection</span></button>
                         <button is="emby-button" type="button" class="raised ec-small ec-danger" data-bulk="delete" disabled><span>Delete selected</span></button>
                     </div>
-                    <p class="ec-hint">Tick collections to delete several at once. Their movies and shows are not touched.</p>
+                    <p class="ec-hint">Tick collections to delete several at once (their movies and shows are not touched). Drag an image file, or an image from another browser tab, onto a poster to use it.</p>
                     <div class="ec-grid"></div>
                 </div>
             </div>

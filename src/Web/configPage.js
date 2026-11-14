@@ -125,6 +125,37 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
             });
         });
 
+        // Drag and drop a poster: an image file, or an image dragged from another browser tab.
+        function dropTarget(el) {
+            var t = el && el.closest ? el.closest('.ec-tile, .ec-droptarget') : null;
+            return t && (t.classList.contains('ec-tile') || t.classList.contains('ec-droptarget')) ? t : null;
+        }
+        view.addEventListener('dragover', function (e) {
+            var t = dropTarget(e.target);
+            if (!t) {
+                return;
+            }
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            view.querySelectorAll('.ec-drop').forEach(function (x) { if (x !== t) { x.classList.remove('ec-drop'); } });
+            t.classList.add('ec-drop');
+        });
+        view.addEventListener('dragleave', function (e) {
+            var t = dropTarget(e.target);
+            if (t && !t.contains(e.relatedTarget)) {
+                t.classList.remove('ec-drop');
+            }
+        });
+        view.addEventListener('drop', function (e) {
+            var t = dropTarget(e.target);
+            if (!t) {
+                return;
+            }
+            e.preventDefault();
+            t.classList.remove('ec-drop');
+            self.dropPoster(t, e.dataTransfer);
+        });
+
         // Enter in a Kometa search box runs Find.
         view.addEventListener('keydown', function (e) {
             if (e.key !== 'Enter' || !e.target.classList) {
@@ -417,7 +448,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 '<div class="ec-sub">Sources <span class="ec-hint">(combined: anything in any source)</span></div>' + sources +
                 '<button is="emby-button" type="button" class="raised ec-small" data-act="addsource" data-c="' + ci + '"><span>Add source</span></button>' +
                 '<div class="ec-sub">Artwork</div>' +
-                '<div class="ec-art"><div>' + art + '</div><div class="ec-thumb" data-c="' + ci + '"></div></div>' +
+                '<div class="ec-art"><div>' + art + '</div><div class="ec-thumb' + (c.BoxSetId ? ' ec-droptarget' : '') + '" data-c="' + ci + '"' + (c.BoxSetId ? ' title="Drop an image here to use it as the poster"' : '') + '></div></div>' +
                 '<div class="ec-status" data-c="' + ci + '">' + self.statusText(c) + '</div>' +
                 '<div class="ec-logbar"><button is="emby-button" type="button" class="raised ec-small" data-act="log" data-c="' + ci + '"><span>' + (self.watched[c.Id] ? 'Hide activity' : 'Show activity') + '</span></button></div>' +
                 (self.watched[c.Id] ? '<div class="ec-log ec-cardlog" data-id="' + esc(c.Id) + '">' + (self.cardLog[c.Id] || []).map(function (e) { return logLine(e, false); }).join('') + '</div>' : '') +
@@ -578,7 +609,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 var picked = !!self.bulk[c.Id];
                 return '<div class="ec-tilewrap' + (picked ? ' picked' : '') + '"><input type="checkbox" class="ec-pick" data-id="' + c.Id + '"' + (picked ? ' checked' : '') + ' title="Select for bulk delete" />' +
                     '<button type="button" class="ec-tile' + (c.Id === self.selectedId ? ' sel' : '') + '" data-id="' + c.Id + '">' +
-                    '<div class="ec-thumb" style="' + (c.HasPoster ? 'background-image:url(&quot;' + esc(posterUrl(c.Id, 300)) + '&quot;)' : '') + '"></div>' +
+                    '<div class="ec-thumb ec-droptarget" style="' + (c.HasPoster ? 'background-image:url(&quot;' + esc(posterUrl(c.Id, 300)) + '&quot;)' : '') + '"></div>' +
                     '<b title="' + esc(c.Name) + '">' + esc(c.Name) + '</b>' +
                     '<small>' + c.Count + ' title' + (c.Count === 1 ? '' : 's') + (c.ManagedId ? '<span class="ec-badge">Managed</span>' : '') + '</small></button></div>';
             }).join('');
@@ -586,6 +617,69 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         }).catch(function (err) {
             grid.innerHTML = '<span class="ec-hint err">' + esc(err.message) + '</span>';
         });
+    };
+
+    /// Sets a collection's poster from something dropped on its poster: a file upload, or an image URL.
+    View.prototype.dropPoster = function (target, dt) {
+        var self = this;
+        var id = null;
+        var managedId = null;
+        var tile = target.closest('.ec-tile');
+        if (tile) {
+            id = parseInt(tile.getAttribute('data-id'), 10);
+        } else if (target.classList.contains('ec-xthumb')) {
+            id = this.selectedId;
+        } else if (target.hasAttribute('data-c')) {
+            var col = this.config.Collections[parseInt(target.getAttribute('data-c'), 10)];
+            id = col && col.BoxSetId;
+            managedId = col && col.Id;
+        }
+        if (!id) {
+            this.message('Sync the collection once before setting its poster.', true);
+            return;
+        }
+        var existing = (this.existing || []).filter(function (c) { return c.Id === id; })[0];
+        managedId = managedId || (existing && existing.ManagedId);
+
+        var file = Array.prototype.filter.call(dt.files || [], function (f) { return /^image\//.test(f.type); })[0];
+        var body;
+        var ready;
+        if (file) {
+            ready = readFile(file).then(function (data) {
+                body = { Action: 'SetArtwork', ArtworkMode: 'Upload', Data: data, MimeType: file.type };
+            });
+        } else {
+            var url = (dt.getData('text/uri-list') || dt.getData('text/plain') || '').split(/\r?\n/).filter(function (l) { return l && l.charAt(0) !== '#'; })[0];
+            if (!url) {
+                var html = dt.getData('text/html');
+                var m = html && html.match(/<img[^>]+src=["']([^"']+)["']/i);
+                url = m && m[1];
+            }
+            if (!url || !/^https?:\/\//i.test(url)) {
+                this.message('Drop an image file, or an image dragged from a web page.', true);
+                return;
+            }
+            body = { Action: 'SetArtwork', ArtworkMode: 'Url', Artwork: { Url: url } };
+            ready = Promise.resolve();
+        }
+        loading.show();
+        ready.then(function () {
+            return postJson('Existing/' + id + '/Action', body);
+        }).then(function (r) {
+            if (r && r.Ok === false) {
+                throw new Error(r.Message || 'Failed');
+            }
+            self.message('Poster set' + (file ? ' from ' + file.name : ' from the dropped image') + '.' + (managedId ? ' Sync will leave it as is.' : ''));
+            if (target.classList.contains('ec-thumb')) {
+                target.style.backgroundImage = 'url("' + posterUrl(id, 450) + '")';
+            }
+            self.afterManageChange(!!managedId, !!self.selectedId);
+            if (self.existing) {
+                existing && (existing.HasPoster = true);
+            }
+        }).catch(function (err) {
+            self.message('Could not set the poster: ' + err.message, true);
+        }).then(function () { loading.hide(); });
     };
 
     View.prototype.updateBulkBar = function () {
@@ -667,7 +761,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
             '<div class="ec-field"><span>Overview</span><input class="ec-input ec-xoverview" type="text" value="' + esc(c.Overview || '') + '" placeholder="Optional" /></div>' +
             '<div class="ec-field"><span>Sort order</span><select class="ec-select ec-xsortorder">' + options(SORTS.slice(1), c.Sort) + '</select></div>' +
             '<div class="ec-actions"><button is="emby-button" type="button" class="raised button-submit" data-xact="update"><span>Save details</span></button></div>' +
-            '</div><div class="ec-thumb ec-xthumb" style="' + (c.HasPoster ? 'background-image:url(&quot;' + esc(posterUrl(c.Id, 450)) + '&quot;)' : '') + '"></div></div>' +
+            '</div><div class="ec-thumb ec-xthumb ec-droptarget" title="Drop an image here to use it as the poster" style="' + (c.HasPoster ? 'background-image:url(&quot;' + esc(posterUrl(c.Id, 450)) + '&quot;)' : '') + '"></div></div>' +
 
             '<div class="ec-sub">Poster</div>' +
             '<div class="ec-field"><span>New poster from</span><select class="ec-select ec-xmode">' +
