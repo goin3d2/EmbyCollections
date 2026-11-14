@@ -172,6 +172,22 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
         });
         var all = view.querySelector('[data-panel="all"]');
         all.addEventListener('click', function (e) {
+            var bulkBtn = e.target.closest('button[data-bulk]');
+            if (bulkBtn) {
+                self.bulkAction(bulkBtn.getAttribute('data-bulk'));
+                return;
+            }
+            if (e.target.classList.contains('ec-pick')) {
+                self.bulk = self.bulk || {};
+                if (e.target.checked) {
+                    self.bulk[e.target.getAttribute('data-id')] = true;
+                } else {
+                    delete self.bulk[e.target.getAttribute('data-id')];
+                }
+                e.target.parentNode.classList.toggle('picked', e.target.checked);
+                self.updateBulkBar();
+                return;
+            }
             var tile = e.target.closest('.ec-tile');
             if (tile) {
                 self.openEditor(parseInt(tile.getAttribute('data-id'), 10));
@@ -552,15 +568,83 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 grid.innerHTML = '<span class="ec-hint">This server has no collections yet.</span>';
                 return;
             }
+            self.bulk = self.bulk || {};
+            Object.keys(self.bulk).forEach(function (id) {
+                if (!list.some(function (c) { return String(c.Id) === id; })) {
+                    delete self.bulk[id];
+                }
+            });
             grid.innerHTML = list.map(function (c) {
-                return '<button type="button" class="ec-tile' + (c.Id === self.selectedId ? ' sel' : '') + '" data-id="' + c.Id + '">' +
+                var picked = !!self.bulk[c.Id];
+                return '<div class="ec-tilewrap' + (picked ? ' picked' : '') + '"><input type="checkbox" class="ec-pick" data-id="' + c.Id + '"' + (picked ? ' checked' : '') + ' title="Select for bulk delete" />' +
+                    '<button type="button" class="ec-tile' + (c.Id === self.selectedId ? ' sel' : '') + '" data-id="' + c.Id + '">' +
                     '<div class="ec-thumb" style="' + (c.HasPoster ? 'background-image:url(&quot;' + esc(posterUrl(c.Id, 300)) + '&quot;)' : '') + '"></div>' +
                     '<b title="' + esc(c.Name) + '">' + esc(c.Name) + '</b>' +
-                    '<small>' + c.Count + ' title' + (c.Count === 1 ? '' : 's') + (c.ManagedId ? '<span class="ec-badge">Managed</span>' : '') + '</small></button>';
+                    '<small>' + c.Count + ' title' + (c.Count === 1 ? '' : 's') + (c.ManagedId ? '<span class="ec-badge">Managed</span>' : '') + '</small></button></div>';
             }).join('');
+            self.updateBulkBar();
         }).catch(function (err) {
             grid.innerHTML = '<span class="ec-hint err">' + esc(err.message) + '</span>';
         });
+    };
+
+    View.prototype.updateBulkBar = function () {
+        var n = Object.keys(this.bulk || {}).length;
+        var del = this.view.querySelector('button[data-bulk="delete"]');
+        if (del) {
+            del.disabled = n === 0;
+            del.querySelector('span').textContent = n ? 'Delete ' + n + ' selected' : 'Delete selected';
+        }
+    };
+
+    View.prototype.bulkAction = function (act) {
+        var self = this;
+        var list = this.existing || [];
+        this.bulk = this.bulk || {};
+        if (act === 'unmanaged') {
+            list.forEach(function (c) {
+                if (!c.ManagedId) {
+                    self.bulk[c.Id] = true;
+                }
+            });
+            this.loadExisting();
+        } else if (act === 'clear') {
+            this.bulk = {};
+            this.loadExisting();
+        } else if (act === 'delete') {
+            var picked = list.filter(function (c) { return self.bulk[c.Id]; });
+            if (!picked.length) {
+                return;
+            }
+            var managed = picked.filter(function (c) { return c.ManagedId; }).length;
+            var names = picked.slice(0, 15).map(function (c) { return '• ' + c.Name; }).join('\n') + (picked.length > 15 ? '\n…and ' + (picked.length - 15) + ' more' : '');
+            if (!window.confirm('Delete ' + picked.length + ' collection' + (picked.length === 1 ? '' : 's') + '? This can\'t be undone. The movies and shows in them are kept.' +
+                (managed ? '\n\n' + managed + ' of them are managed by this plugin and will stop being managed.' : '') + '\n\n' + names)) {
+                return;
+            }
+            loading.show();
+            var done = 0;
+            var failed = [];
+            picked.reduce(function (p, c) {
+                return p.then(function () {
+                    self.message('Deleting ' + (done + failed.length + 1) + ' of ' + picked.length + ': ' + c.Name + '…');
+                    return postJson('Existing/' + c.Id + '/Action', { Action: 'Delete' }).then(function () {
+                        done++;
+                        delete self.bulk[c.Id];
+                    }).catch(function (err) {
+                        failed.push(c.Name + ' (' + err.message + ')');
+                    });
+                });
+            }, Promise.resolve()).then(function () {
+                loading.hide();
+                if (picked.some(function (c) { return c.Id === self.selectedId; })) {
+                    self.view.querySelector('.ec-editor').innerHTML = '';
+                    self.selectedId = null;
+                }
+                self.message('Deleted ' + done + ' collection' + (done === 1 ? '' : 's') + '.' + (failed.length ? ' Failed: ' + failed.join('; ') : ''), failed.length > 0);
+                self.afterManageChange(managed > 0);
+            });
+        }
     };
 
     View.prototype.openEditor = function (id) {

@@ -52,6 +52,9 @@
             .ec-tile { background: none; border: 2px solid transparent; border-radius: 8px; padding: .3em; color: inherit; font: inherit; text-align: left; cursor: pointer; }
             .ec-tile:hover, .ec-tile.sel { border-color: #52b54b; }
             .ec-tile .ec-thumb { width: 100%; }
+            .ec-tilewrap { position: relative; }
+            .ec-tilewrap .ec-pick { position: absolute; top: .6em; left: .6em; z-index: 2; width: 1.4em; height: 1.4em; -webkit-appearance: auto; appearance: auto; margin: 0; cursor: pointer; accent-color: #d9534f; }
+            .ec-tilewrap.picked .ec-tile { border-color: #d9534f; }
             .ec-tile b { display: block; margin: .4em 0 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .ec-tile small { opacity: .7; }
             .ec-badge { display: inline-block; font-size: .75em; padding: .1em .5em; border-radius: 1em; background: #52b54b; color: #fff; margin-left: .3em; }
@@ -112,6 +115,12 @@
                 <div class="ec-section">
                     <h2>All collections</h2>
                     <p class="ec-hint">Every collection on this server. Pick one to rename it, change or remove its poster, remove titles, delete it, or let this plugin manage it.</p>
+                    <div class="ec-actions ec-bulkbar">
+                        <button is="emby-button" type="button" class="raised ec-small" data-bulk="unmanaged"><span>Select all unmanaged</span></button>
+                        <button is="emby-button" type="button" class="raised ec-small" data-bulk="clear"><span>Clear selection</span></button>
+                        <button is="emby-button" type="button" class="raised ec-small ec-danger" data-bulk="delete" disabled><span>Delete selected</span></button>
+                    </div>
+                    <p class="ec-hint">Tick collections to delete several at once. Their movies and shows are not touched.</p>
                     <div class="ec-grid"></div>
                 </div>
             </div>
