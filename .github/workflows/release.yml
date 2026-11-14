@@ -17,7 +17,7 @@ env:
   PROJECT: EmbyCollections.csproj
   DLL: EmbyCollections.dll
   # Emby release whose DLLs the plugin is compiled against (the server supplies them at runtime).
-  EMBY_VERSION: 4.11.0.11
+  EMBY_VERSION: 4.11.0.13
 
 jobs:
   release:
