@@ -458,6 +458,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
             return;
         }
         getJson('Status').then(function (st) {
+            var needRender = false;
             st.Collections.forEach(function (s) {
                 var ci = -1;
                 self.config.Collections.forEach(function (c, i) { if (c.Id === s.Id) { ci = i; } });
@@ -467,6 +468,10 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                 var c = self.config.Collections[ci];
                 var changed = JSON.stringify(c.LastSync) !== JSON.stringify(s.LastSync);
                 c.LastSync = s.LastSync;
+                // A first sync just created the Emby collection: redraw so its card gets the Home screen button.
+                if (s.BoxSetId && c.BoxSetId !== s.BoxSetId) {
+                    needRender = true;
+                }
                 c.BoxSetId = s.BoxSetId;
                 var el = self.view.querySelector('.ec-status[data-c="' + ci + '"]');
                 if (el) {
@@ -476,6 +481,9 @@ define(['baseView', 'loading', 'emby-input', 'emby-checkbox', 'emby-button', 'em
                     self.updateThumb(ci);
                 }
             });
+            if (needRender) {
+                self.render();
+            }
             if (st.Running) {
                 self.message('Syncing…', false);
             } else if (self.syncing) {
