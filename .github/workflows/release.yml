@@ -42,17 +42,37 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Get Emby server DLLs
+      - name: Build against Emby
         if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          curl -fsSL -o emby.deb "https://github.com/MediaBrowser/Emby.Releases/releases/download/${EMBY_VERSION}/emby-server-deb_${EMBY_VERSION}_amd64.deb"
-          dpkg-deb -x emby.deb emby-pkg
-          mkdir -p emby-lib
-          cp emby-pkg/opt/emby-server/system/{MediaBrowser.Common,MediaBrowser.Controller,MediaBrowser.Model,SkiaSharp}.dll emby-lib/
-
-      - name: Build
-        if: steps.version.outputs.skip != 'true'
-        run: dotnet build "$PROJECT" -c Release -o out -p:EmbyLibDir="$PWD/emby-lib"
+          # The pinned Emby release first. Emby removes old beta packages, so if it's gone,
+          # try the newest stable release and then the newest beta.
+          candidates="$EMBY_VERSION"
+          list=$(gh api "repos/MediaBrowser/Emby.Releases/releases?per_page=40" \
+            --jq '[.[] | select(any(.assets[]?; .name | test("^emby-server-deb_.*_amd64\\.deb$")))]
+                  | ((map(select(.prerelease | not)) | .[0].tag_name), (map(select(.prerelease)) | .[0].tag_name))
+                  | select(. != null)' || true)
+          candidates="$candidates $list"
+          for v in $candidates; do
+            echo "::group::Emby $v"
+            rm -rf emby.deb emby-pkg emby-lib out
+            if curl -fsSL -o emby.deb "https://github.com/MediaBrowser/Emby.Releases/releases/download/$v/emby-server-deb_${v}_amd64.deb" \
+               && dpkg-deb -x emby.deb emby-pkg \
+               && mkdir -p emby-lib \
+               && cp emby-pkg/opt/emby-server/system/{MediaBrowser.Common,MediaBrowser.Controller,MediaBrowser.Model,SkiaSharp}.dll emby-lib/ \
+               && dotnet build "$PROJECT" -c Release -o out -p:EmbyLibDir="$PWD/emby-lib"; then
+              echo "::endgroup::"
+              [ "$v" = "$EMBY_VERSION" ] || echo "::warning::Emby $EMBY_VERSION is no longer published; built against Emby $v instead. Update EMBY_VERSION in this workflow."
+              echo "BUILT_EMBY=$v" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Emby $v didn't work, trying the next one"
+          done
+          echo "::error::Couldn't build against any Emby release ($candidates)"
+          exit 1
 
       - name: Publish release
         if: steps.version.outputs.skip != 'true'
@@ -62,6 +82,6 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "Emby Collections ${{ steps.version.outputs.version }}" \
             --generate-notes \
-            --notes "Copy \`$DLL\` into Emby's \`plugins\` folder and restart Emby. Built against Emby ${EMBY_VERSION}; needs Emby 4.10 or newer."
+            --notes "Copy \`$DLL\` into Emby's \`plugins\` folder and restart Emby. Built against Emby ${BUILT_EMBY:-$EMBY_VERSION}; needs Emby 4.10 or newer."
         env:
           GH_TOKEN: ${{ github.token }}
